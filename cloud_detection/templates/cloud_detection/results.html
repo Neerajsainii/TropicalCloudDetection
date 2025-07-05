@@ -1,0 +1,292 @@
+{% extends 'cloud_detection/base.html' %}
+
+{% block title %}Results - Cloud Detection Portal{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>
+                        Processing Results
+                    </h4>
+                    <span class="status-badge status-completed">
+                        <i class="fas fa-check-circle me-1"></i>
+                        Completed
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h6><i class="fas fa-file me-2"></i>{{ satellite_data.file_name }}</h6>
+                        <p class="text-muted mb-2">
+                            Processed on {{ satellite_data.processing_end_time|date:"M d, Y H:i" }}
+                        </p>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="badge bg-primary">{{ satellite_data.satellite_name }}</span>
+                            <span class="badge bg-secondary">{{ satellite_data.data_type }}</span>
+                            <span class="badge bg-info">{{ satellite_data.file_size|filesizeformat }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <div class="btn-group" role="group">
+                            <a href="{% url 'cloud_detection:upload_file' %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-1"></i>New Upload
+                            </a>
+                            <a href="{% url 'cloud_detection:data_history' %}" class="btn btn-secondary">
+                                <i class="fas fa-history me-1"></i>History
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Overview -->
+{% if satellite_data.cloud_coverage_percentage %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="h2 text-primary mb-2">
+                    <i class="fas fa-cloud"></i>
+                </div>
+                <div class="h3 text-primary">{{ satellite_data.cloud_coverage_percentage|floatformat:2 }}%</div>
+                <p class="text-muted mb-0">Cloud Coverage</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="h2 text-info mb-2">
+                    <i class="fas fa-th"></i>
+                </div>
+                <div class="h3 text-info">{{ satellite_data.cloud_pixels|default:"N/A" }}</div>
+                <p class="text-muted mb-0">Cloud Pixels</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="h2 text-success mb-2">
+                    <i class="fas fa-expand"></i>
+                </div>
+                <div class="h3 text-success">{{ satellite_data.total_pixels|default:"N/A" }}</div>
+                <p class="text-muted mb-0">Total Pixels</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="h2 text-warning mb-2">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="h3 text-warning">
+                    {% if satellite_data.processing_start_time and satellite_data.processing_end_time %}
+                        {{ satellite_data.processing_end_time|timeuntil:satellite_data.processing_start_time }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </div>
+                <p class="text-muted mb-0">Processing Time</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Visualizations -->
+<div class="row mb-4">
+    <!-- Brightness Temperature Plot -->
+    <div class="col-12 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-thermometer-half me-2"></i>
+                        Brightness Temperature
+                    </h5>
+                    {% if satellite_data.brightness_temperature_plot %}
+                        <a href="{% url 'cloud_detection:download_file' satellite_data.pk 'bt_plot' %}" 
+                           class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-download me-1"></i>Download
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body text-center">
+                {% if satellite_data.brightness_temperature_plot %}
+                    <img src="{{ satellite_data.brightness_temperature_plot.url }}" 
+                         class="img-fluid rounded shadow" 
+                         alt="Brightness Temperature Plot"
+                         style="max-height: 400px; cursor: pointer;"
+                         onclick="openImageModal(this.src, 'Brightness Temperature Plot')">
+                    <p class="text-muted mt-2">
+                        <small>
+                            <i class="fas fa-info-circle me-1"></i>
+                            Shows satellite-measured brightness temperatures in Kelvin. Lower temperatures (darker regions) typically indicate cloud presence.
+                        </small>
+                    </p>
+                {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-image" style="font-size: 4rem;"></i>
+                        <h6 class="mt-3">Plot Not Available</h6>
+                        <p>Brightness temperature plot was not generated during processing.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+
+</div>
+
+<!-- Download Options -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-download me-2"></i>
+                    Download Options
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="d-grid">
+                            {% if satellite_data.brightness_temperature_plot %}
+                                <a href="{% url 'cloud_detection:download_file' satellite_data.pk 'bt_plot' %}" 
+                                   class="btn btn-outline-primary">
+                                    <i class="fas fa-thermometer-half me-2"></i>
+                                    Brightness Temp Plot
+                                </a>
+                            {% else %}
+                                <button class="btn btn-outline-secondary" disabled>
+                                    <i class="fas fa-thermometer-half me-2"></i>
+                                    Brightness Temp Plot
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="d-grid">
+                            {% if satellite_data.processed_data_file %}
+                                <a href="{% url 'cloud_detection:download_file' satellite_data.pk 'results' %}" 
+                                   class="btn btn-outline-primary">
+                                    <i class="fas fa-file-code me-2"></i>
+                                    Processed Data
+                                </a>
+                            {% else %}
+                                <button class="btn btn-outline-secondary" disabled>
+                                    <i class="fas fa-file-code me-2"></i>
+                                    Processed Data
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="d-grid">
+                            <a href="{% url 'cloud_detection:download_file' satellite_data.pk 'original' %}" 
+                               class="btn btn-outline-secondary">
+                                <i class="fas fa-file me-2"></i>
+                                Original File
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-white" id="imageModalLabel">Image Viewer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalImage" src="" class="img-fluid" alt="">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .card img {
+        transition: transform 0.3s ease;
+    }
+    
+    .card img:hover {
+        transform: scale(1.02);
+    }
+    
+    .status-completed {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--success-color);
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .modal-content {
+        background: var(--secondary-bg) !important;
+        border: 1px solid var(--accent-bg);
+    }
+    
+    .btn-outline-primary {
+        border-color: var(--accent-color);
+        color: var(--accent-color);
+    }
+    
+    .btn-outline-primary:hover {
+        background: var(--accent-color);
+        border-color: var(--accent-color);
+        color: white;
+    }
+    
+    .btn-outline-secondary {
+        border-color: var(--text-muted);
+        color: var(--text-muted);
+    }
+    
+    .btn-outline-secondary:hover {
+        background: var(--text-muted);
+        border-color: var(--text-muted);
+        color: var(--primary-bg);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openImageModal(src, title) {
+    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+    document.getElementById('modalImage').src = src;
+    document.getElementById('imageModalLabel').textContent = title;
+    modal.show();
+}
+</script>
+{% endblock %} 

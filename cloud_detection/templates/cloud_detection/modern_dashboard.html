@@ -1,0 +1,642 @@
+{% extends 'cloud_detection/modern_base.html' %}
+
+{% block title %}Dashboard - TropicalSat Cloud Detection{% endblock %}
+
+{% block content %}
+<!-- Tab Navigation -->
+<div class="mb-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-grid gap-0 d-md-flex justify-content-md-center">
+                <button class="tab-button btn flex-fill me-md-2 mb-2 mb-md-0 active" onclick="showTab('dashboard')">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Dashboard
+                </button>
+                <button class="tab-button btn flex-fill me-md-2 mb-2 mb-md-0" onclick="showTab('upload')">
+                    <i class="fas fa-upload me-2"></i>
+                    Upload Data
+                </button>
+                <button class="tab-button btn flex-fill" onclick="showTab('satellite')">
+                    <i class="fas fa-satellite me-2"></i>
+                    Satellite View
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dashboard Tab Content -->
+<div id="dashboard-tab" class="tab-content">
+    <div class="row g-4">
+        <!-- Analytics Section -->
+        <div class="col-lg-8">
+            <div class="card-glass rounded-4 p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="text-white mb-0">
+                        <i class="fas fa-chart-bar text-cyan-400 me-2"></i>
+                        Cloud Analytics Dashboard
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">24H Data</span>
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">Real-time</span>
+                    </div>
+                </div>
+                
+                <!-- Stats Cards -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2)); border: 1px solid rgba(59, 130, 246, 0.3);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="text-primary-light small mb-1">Avg Coverage</p>
+                                    <p class="h4 text-primary fw-bold mb-0 status-value" data-type="avg_coverage">78.5%</p>
+                                </div>
+                                <div class="p-2 rounded-circle" style="background: rgba(59, 130, 246, 0.3);">
+                                    <i class="fas fa-chart-line text-primary"></i>
+                                </div>
+                            </div>
+                            <div class="small text-primary-light mt-2">↑ 5.2% from yesterday</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(20, 184, 166, 0.2)); border: 1px solid rgba(16, 185, 129, 0.3);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="text-success-light small mb-1">Detection Rate</p>
+                                    <p class="h4 text-success fw-bold mb-0 status-value" data-type="detection_rate">97.3%</p>
+                                </div>
+                                <div class="p-2 rounded-circle" style="background: rgba(16, 185, 129, 0.3);">
+                                    <i class="fas fa-bullseye text-success"></i>
+                                </div>
+                            </div>
+                            <div class="small text-success-light mt-2">↑ 1.8% accuracy</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2)); border: 1px solid rgba(168, 85, 247, 0.3);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="text-purple-light small mb-1">Alerts Today</p>
+                                    <p class="h4 text-purple fw-bold mb-0 status-value" data-type="alerts_today">23</p>
+                                </div>
+                                <div class="p-2 rounded-circle" style="background: rgba(168, 85, 247, 0.3);">
+                                    <i class="fas fa-exclamation-triangle text-purple"></i>
+                                </div>
+                            </div>
+                            <div class="small text-purple-light mt-2">↓ 15% from average</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chart Area -->
+                <div class="chart-container">
+                    <canvas id="analyticsChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="row g-4">
+                <!-- Real-time Data -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <h6 class="text-white mb-3">
+                            <i class="fas fa-satellite text-cyan-400 me-2"></i>
+                            Real-time Data
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <div class="text-white-50 small">Coverage</div>
+                                    <div class="h5 text-white status-value" data-type="cloud_coverage">85.2%</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <div class="text-white-50 small">Temperature</div>
+                                    <div class="h5 text-white status-value" data-type="temperature">28.5°C</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <div class="text-white-50 small">Humidity</div>
+                                    <div class="h5 text-white status-value" data-type="humidity">76%</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <div class="text-white-50 small">Pressure</div>
+                                    <div class="h5 text-white status-value" data-type="pressure">1012 hPa</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3 p-2 rounded" style="background: rgba(255, 255, 255, 0.05);">
+                            <div class="small text-white-50">Satellite: GOES-16</div>
+                            <div class="small text-white-50">Position: 12.5°N, 83.2°W</div>
+                            <div class="small text-white-50">Altitude: 35,786 km</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Control Panel -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <h6 class="text-white mb-3">
+                            <i class="fas fa-cogs text-cyan-400 me-2"></i>
+                            Control Panel
+                        </h6>
+                        
+                        <!-- System Status -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: rgba(255, 255, 255, 0.05);">
+                                <span class="small text-white">Detection System</span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-success bg-opacity-25 text-success">Running</span>
+                                    <button class="btn btn-sm btn-glass">
+                                        <i class="fas fa-pause"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Settings -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small text-white">Auto Refresh</span>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" checked id="autoRefresh">
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="small text-white">Alert Notifications</span>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" checked id="alertNotifications">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Sensitivity Slider -->
+                        <div class="mb-3">
+                            <label class="small text-white d-block mb-2">Detection Sensitivity: <span id="sensitivityValue">75</span>%</label>
+                            <input type="range" class="form-range" min="25" max="100" value="75" id="sensitivitySlider">
+                        </div>
+                        
+                        <!-- Quick Actions -->
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-glass btn-sm">
+                                <i class="fas fa-redo me-2"></i>Reset System
+                            </button>
+                            <button class="btn btn-glass btn-sm">
+                                <i class="fas fa-download me-2"></i>Export Data
+                            </button>
+                        </div>
+                        
+                        <!-- Quick Stats -->
+                        <div class="mt-3 p-2 rounded" style="background: rgba(255, 255, 255, 0.05);">
+                            <div class="row text-xs">
+                                <div class="col-6">
+                                    <div class="text-white-50 small">Uptime</div>
+                                    <div class="text-cyan-400 small font-monospace">24h 15m</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-white-50 small">Accuracy</div>
+                                    <div class="text-success small font-monospace">97.3%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Tab Content -->
+<div id="upload-tab" class="tab-content" style="display: none;">
+    <div class="row g-4">
+        <!-- File Upload -->
+        <div class="col-lg-6">
+            <div class="card-glass rounded-4 p-4 h-100">
+                <h5 class="text-white mb-4">
+                    <i class="fas fa-upload text-cyan-400 me-2"></i>
+                    File Upload
+                </h5>
+                
+                <form method="post" enctype="multipart/form-data" action="{% url 'cloud_detection:upload_file' %}">
+                    {% csrf_token %}
+                    <div class="dropzone rounded-4 p-5 text-center mb-4" onclick="document.getElementById('fileInput').click()">
+                        <div class="d-flex flex-column align-items-center">
+                            <div class="mb-3 p-3 rounded-circle" style="background: linear-gradient(135deg, #06b6d4, #3b82f6); width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-upload text-white fs-4"></i>
+                            </div>
+                            <p class="h6 text-white mb-2">Drag & drop your satellite data file</p>
+                            <p class="small text-white-50 mb-3">or <span class="text-cyan-400">click to browse</span></p>
+                            <div class="d-flex align-items-center gap-3 small text-white-50">
+                                <span>Supported formats: HDF5, NetCDF</span>
+                                <span>•</span>
+                                <span>Max size: 500MB</span>
+                            </div>
+                        </div>
+                        <input type="file" id="fileInput" name="file" class="d-none" accept=".h5,.hdf5,.nc,.netcdf" onchange="handleFileSelect(this)">
+                    </div>
+                    
+                    <div id="fileInfo" class="d-none mb-4">
+                        <div class="d-flex align-items-center p-3 rounded" style="background: rgba(255, 255, 255, 0.05);">
+                            <i class="fas fa-file text-cyan-400 fs-3 me-3"></i>
+                            <div class="flex-grow-1">
+                                <div class="text-white fw-medium" id="fileName"></div>
+                                <div class="text-white-50 small" id="fileSize"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between small mb-2">
+                                <span class="text-white">Uploading...</span>
+                                <span class="text-white" id="uploadProgress">0%</span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar bg-cyan-400 progress-animated" role="progressbar" style="width: 0%" id="progressBar"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-glass w-100">
+                        <i class="fas fa-cloud-upload-alt me-2"></i>
+                        Upload & Process
+                    </button>
+                </form>
+                
+                <div class="mt-4 small text-white-50">
+                    <p class="mb-1">• Supported formats: HDF5 (.h5, .hdf5), NetCDF (.nc, .netcdf)</p>
+                    <p class="mb-1">• Maximum file size: 500MB</p>
+                    <p class="mb-0">• Files are processed automatically after upload</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar (same as dashboard) -->
+        <div class="col-lg-6">
+            <div class="row g-4">
+                <!-- Real-time Data (reused) -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <h6 class="text-white mb-3">
+                            <i class="fas fa-satellite text-cyan-400 me-2"></i>
+                            Processing Queue
+                        </h6>
+                        
+                        <div id="processingQueue">
+                            <div class="text-center text-white-50 py-4">
+                                <i class="fas fa-inbox fs-1 mb-3 d-block"></i>
+                                <p>No files in queue</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button class="btn btn-glass btn-sm w-100">
+                                <i class="fas fa-history me-2"></i>
+                                View Processing History
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Results -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <h6 class="text-white mb-3">
+                            <i class="fas fa-chart-line text-cyan-400 me-2"></i>
+                            Recent Results
+                        </h6>
+                        
+                        <div id="recentResults">
+                            {% for data in recent_results %}
+                            <div class="d-flex justify-content-between align-items-center p-2 mb-2 rounded" style="background: rgba(255, 255, 255, 0.05);">
+                                <div>
+                                    <div class="text-white small fw-medium">{{ data.filename|truncatechars:20 }}</div>
+                                    <div class="text-white-50 small">{{ data.upload_time|timesince }} ago</div>
+                                </div>
+                                <div>
+                                    {% if data.processing_status == 'completed' %}
+                                        <span class="badge bg-success bg-opacity-25 text-success">Completed</span>
+                                    {% elif data.processing_status == 'processing' %}
+                                        <span class="badge bg-warning bg-opacity-25 text-warning">Processing</span>
+                                    {% elif data.processing_status == 'failed' %}
+                                        <span class="badge bg-danger bg-opacity-25 text-danger">Failed</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary bg-opacity-25 text-secondary">Pending</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="text-center text-white-50 py-3">
+                                <p class="mb-0">No recent results</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Satellite View Tab Content -->
+<div id="satellite-tab" class="tab-content" style="display: none;">
+    <div class="row g-4">
+        <!-- Satellite Map -->
+        <div class="col-lg-8">
+            <div class="card-glass rounded-4 p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="text-white mb-0">
+                        <i class="fas fa-satellite text-cyan-400 me-2"></i>
+                        Satellite View
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">Live Feed</span>
+                        <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">HD Quality</span>
+                    </div>
+                </div>
+                
+                <!-- Map Container -->
+                <div class="position-relative rounded-4 overflow-hidden mb-4" style="height: 400px; background: linear-gradient(135deg, rgba(59, 130, 246, 0.5), rgba(16, 185, 129, 0.2));">
+                    <!-- Simulated Cloud Overlays -->
+                    <div class="position-absolute" style="top: 25%; left: 33%; width: 96px; height: 64px; background: rgba(255, 255, 255, 0.4); border-radius: 50px; filter: blur(8px); animation: pulse 3s infinite;"></div>
+                    <div class="position-absolute" style="top: 50%; right: 25%; width: 128px; height: 80px; background: rgba(255, 255, 255, 0.3); border-radius: 50px; filter: blur(8px); animation: pulse 3s infinite; animation-delay: 1s;"></div>
+                    <div class="position-absolute" style="bottom: 33%; left: 25%; width: 80px; height: 48px; background: rgba(255, 255, 255, 0.35); border-radius: 50px; filter: blur(8px); animation: pulse 3s infinite; animation-delay: 2s;"></div>
+                    
+                    <!-- Grid Overlay -->
+                    <div class="position-absolute inset-0 opacity-20" style="background-image: repeating-linear-gradient(0deg, rgba(255,255,255,0.1), rgba(255,255,255,0.1) 1px, transparent 1px, transparent 50px), repeating-linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.1) 1px, transparent 1px, transparent 50px);"></div>
+                    
+                    <!-- Location Markers -->
+                    <div class="position-absolute" style="top: 33%; left: 50%; width: 12px; height: 12px; background: #ef4444; border-radius: 50%; animation: ping 2s infinite;"></div>
+                    <div class="position-absolute" style="top: 66%; right: 33%; width: 12px; height: 12px; background: #eab308; border-radius: 50%; animation: ping 2s infinite; animation-delay: 0.5s;"></div>
+                    
+                    <!-- Coordinates Display -->
+                    <div class="position-absolute top-0 start-0 m-3 p-2 rounded" style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(8px);">
+                        <div class="small text-white">Lat: 12.5°N</div>
+                        <div class="small text-white">Lon: 83.2°W</div>
+                    </div>
+                    
+                    <!-- Scale -->
+                    <div class="position-absolute bottom-0 start-0 m-3 p-2 rounded small text-white" style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(8px);">
+                        Scale: 1:750km
+                    </div>
+                </div>
+                
+                <!-- Layer Controls -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <h6 class="text-white small mb-2">
+                            <i class="fas fa-layer-group me-2"></i>
+                            Active Layers
+                        </h6>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <button class="btn btn-glass btn-sm w-100 active">
+                                    <div class="w-2 h-2 bg-primary rounded-circle me-2 d-inline-block"></div>
+                                    Clouds
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button class="btn btn-glass btn-sm w-100">
+                                    <div class="w-2 h-2 bg-danger rounded-circle me-2 d-inline-block"></div>
+                                    Temperature
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button class="btn btn-glass btn-sm w-100">
+                                    <div class="w-2 h-2 bg-success rounded-circle me-2 d-inline-block"></div>
+                                    Humidity
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button class="btn btn-glass btn-sm w-100">
+                                    <div class="w-2 h-2 bg-purple rounded-circle me-2 d-inline-block"></div>
+                                    Pressure
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="small text-white d-block mb-2">Zoom Level: <span id="zoomValue">75</span>%</label>
+                            <input type="range" class="form-range" min="25" max="200" value="75" id="zoomSlider">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="small text-white d-block mb-2">Layer Opacity: <span id="opacityValue">80</span>%</label>
+                            <input type="range" class="form-range" min="0" max="100" value="80" id="opacitySlider">
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-glass btn-sm">
+                                <i class="fas fa-search-plus"></i>
+                            </button>
+                            <button class="btn btn-glass btn-sm">
+                                <i class="fas fa-search-minus"></i>
+                            </button>
+                            <button class="btn btn-glass btn-sm">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar (reused components) -->
+        <div class="col-lg-4">
+            <div class="row g-4">
+                <!-- Real-time Data (same as other tabs) -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <h6 class="text-white mb-3">
+                            <i class="fas fa-satellite text-cyan-400 me-2"></i>
+                            Real-time Data
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <div class="text-white-50 small">Coverage</div>
+                                    <div class="h5 text-white">85.2%</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <div class="text-white-50 small">Temperature</div>
+                                    <div class="h5 text-white">28.5°C</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <div class="text-white-50 small">Humidity</div>
+                                    <div class="h5 text-white">76%</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center">
+                                    <div class="text-white-50 small">Pressure</div>
+                                    <div class="h5 text-white">1012 hPa</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Control Panel (reused) -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <h6 class="text-white mb-3">
+                            <i class="fas fa-cogs text-cyan-400 me-2"></i>
+                            Map Controls
+                        </h6>
+                        
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-glass btn-sm">
+                                <i class="fas fa-expand me-2"></i>Fullscreen
+                            </button>
+                            <button class="btn btn-glass btn-sm">
+                                <i class="fas fa-camera me-2"></i>Screenshot
+                            </button>
+                            <button class="btn btn-glass btn-sm">
+                                <i class="fas fa-download me-2"></i>Export View
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Analytics Chart
+    const ctx = document.getElementById('analyticsChart').getContext('2d');
+    const analyticsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+            datasets: [{
+                label: 'Cloud Coverage (%)',
+                data: [65, 72, 85, 78, 68, 82, 90, 76],
+                borderColor: '#06b6d4',
+                backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'white'
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.6)'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.6)'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                }
+            }
+        }
+    });
+    
+    // File handling
+    function handleFileSelect(input) {
+        const file = input.files[0];
+        if (file) {
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+            document.getElementById('fileInfo').classList.remove('d-none');
+            
+            // Simulate upload progress
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                }
+                document.getElementById('uploadProgress').textContent = Math.round(progress) + '%';
+                document.getElementById('progressBar').style.width = progress + '%';
+            }, 200);
+        }
+    }
+    
+    // Range sliders
+    document.getElementById('sensitivitySlider').addEventListener('input', function() {
+        document.getElementById('sensitivityValue').textContent = this.value;
+    });
+    
+    document.getElementById('zoomSlider').addEventListener('input', function() {
+        document.getElementById('zoomValue').textContent = this.value;
+    });
+    
+    document.getElementById('opacitySlider').addEventListener('input', function() {
+        document.getElementById('opacityValue').textContent = this.value;
+    });
+    
+    // Real-time data updates
+    function updateDashboard(data) {
+        if (data) {
+            document.querySelectorAll('.status-value').forEach(element => {
+                const type = element.dataset.type;
+                if (data[type] !== undefined) {
+                    element.textContent = data[type] + (type.includes('percentage') || type.includes('rate') || type.includes('coverage') ? '%' : 
+                                                        type === 'temperature' ? '°C' : 
+                                                        type === 'pressure' ? ' hPa' : 
+                                                        type === 'humidity' ? '%' : '');
+                }
+            });
+        }
+    }
+    
+    // Layer button handlers
+    document.querySelectorAll('.col-6 .btn-glass').forEach(button => {
+        button.addEventListener('click', function() {
+            // Remove active class from all layer buttons
+            this.parentElement.parentElement.querySelectorAll('.btn-glass').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            // Add active class to clicked button
+            this.classList.add('active');
+        });
+    });
+</script>
+
+<style>
+    .text-primary-light { color: rgba(59, 130, 246, 0.8) !important; }
+    .text-success-light { color: rgba(16, 185, 129, 0.8) !important; }
+    .text-purple-light { color: rgba(168, 85, 247, 0.8) !important; }
+    .text-purple { color: rgba(168, 85, 247, 1) !important; }
+    
+    @keyframes ping {
+        0% { transform: scale(1); opacity: 1; }
+        75%, 100% { transform: scale(2); opacity: 0; }
+    }
+    
+    .w-2 { width: 8px !important; }
+    .h-2 { height: 8px !important; }
+</style>
+{% endblock %} 

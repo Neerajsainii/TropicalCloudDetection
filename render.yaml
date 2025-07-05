@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: tropical-cloud-detection
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn cloud_detection_portal.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "tropical-cloud-detection.onrender.com"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://tropical-cloud-detection.onrender.com"
+    plan: free
+
+databases:
+  - name: tropical-cloud-detection-db
+    databaseName: tropical_cloud_detection
+    user: cloud_user
+    plan: free 
