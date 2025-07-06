@@ -14,12 +14,12 @@ backlog = 2048
 workers = 1  # Single worker to avoid memory issues on free tier
 worker_class = "sync"
 worker_connections = 1000
-timeout = 300  # 5 minutes for large file processing
+timeout = 600  # 10 minutes for large file uploads and processing
 keepalive = 2
 
 # Memory management
-max_requests = 50  # Restart worker after 50 requests
-max_requests_jitter = 10  # Add randomness to prevent thundering herd
+max_requests = 10  # Restart worker after 10 requests for memory cleanup
+max_requests_jitter = 5  # Add randomness to prevent thundering herd
 preload_app = True
 
 # Logging

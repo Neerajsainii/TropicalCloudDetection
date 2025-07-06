@@ -99,50 +99,70 @@ def home(request):
     return render(request, 'cloud_detection/home.html', context)
 
 def upload_file(request):
-    """Handle file upload - process synchronously to avoid module import issues"""
+    """Handle file upload with optimized error handling for large files"""
     if request.method != 'POST':
         return redirect('cloud_detection:home')
 
-    form = SatelliteDataForm(request.POST, request.FILES)
-    
-    if form.is_valid():
-        try:
-            satellite_data = form.save()
+    try:
+        # Check file size before processing
+        if 'file_path' in request.FILES:
+            uploaded_file = request.FILES['file_path']
+            file_size = uploaded_file.size
             
-            # Process file immediately (synchronously) to avoid threading issues
+            # Log file upload attempt
+            logger.info(f"File upload attempt: {uploaded_file.name}, Size: {file_size} bytes")
+            
+            # Check if file is too large (500MB limit)
+            if file_size > 500 * 1024 * 1024:  # 500MB
+                messages.error(request, 'File size exceeds 500MB limit.')
+                return redirect('cloud_detection:home')
+
+        form = SatelliteDataForm(request.POST, request.FILES)
+        
+        if form.is_valid():
             try:
-                from .processing import CloudDetectionProcessor
-                processor = CloudDetectionProcessor(satellite_data)
-                processor.process_satellite_data()
-                logger.info(f"Processing completed for file: {satellite_data.file_name}")
-                messages.success(request, 'File uploaded and processed successfully!')
+                # Save the file first
+                satellite_data = form.save()
+                logger.info(f"File saved successfully: {satellite_data.file_name}")
+                
+                # Process file immediately (synchronously) to avoid threading issues
+                try:
+                    from .processing import CloudDetectionProcessor
+                    processor = CloudDetectionProcessor(satellite_data)
+                    processor.process_satellite_data()
+                    logger.info(f"Processing completed for file: {satellite_data.file_name}")
+                    messages.success(request, 'File uploaded and processed successfully!')
+                except Exception as e:
+                    logger.error(f"Processing failed for {satellite_data.file_name}: {e}")
+                    satellite_data.refresh_from_db()
+                    if satellite_data.status != 'failed':
+                        satellite_data.status = 'failed'
+                        satellite_data.error_message = str(e)
+                        satellite_data.save()
+                        ProcessingLog.objects.create(
+                            satellite_data=satellite_data,
+                            level='error',
+                            message=f'Processing failed: {e}'
+                        )
+                    messages.error(request, f'Processing failed: {e}')
+                
+                return redirect('cloud_detection:processing_status', data_id=satellite_data.id)
+                
             except Exception as e:
-                logger.error(f"Processing failed for {satellite_data.file_name}: {e}")
-                satellite_data.refresh_from_db()
-                if satellite_data.status != 'failed':
-                    satellite_data.status = 'failed'
-                    satellite_data.error_message = str(e)
-                    satellite_data.save()
-                    ProcessingLog.objects.create(
-                        satellite_data=satellite_data,
-                        level='error',
-                        message=f'Processing failed: {e}'
-                    )
-                messages.error(request, f'Processing failed: {e}')
-            
-            return redirect('cloud_detection:processing_status', data_id=satellite_data.id)
-            
-        except Exception as e:
-            logger.error(f"File upload failed: {e}")
-            messages.error(request, f"File upload failed: {e}")
+                logger.error(f"File upload failed: {e}")
+                messages.error(request, f"File upload failed: {e}")
+                return redirect('cloud_detection:home')
+        else:
+            # Form is invalid
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
             return redirect('cloud_detection:home')
-    
-    # Form is invalid
-    for field, errors in form.errors.items():
-        for error in errors:
-            messages.error(request, f"{field}: {error}")
-    
-    return redirect('cloud_detection:home')
+            
+    except Exception as e:
+        logger.error(f"Unexpected error during upload: {e}")
+        messages.error(request, "An unexpected error occurred during upload.")
+        return redirect('cloud_detection:home')
 
 def processing_status(request, data_id):
     """Show processing status for a specific file"""
@@ -458,3 +478,31 @@ def api_analytics_details(request, data_id):
         return JsonResponse(data)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def health_check(request):
+    """Health check endpoint for monitoring"""
+    try:
+        # Check database connection
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        
+        # Check if we can access models
+        from .models import SatelliteData
+        count = SatelliteData.objects.count()
+        
+        return JsonResponse({
+            'status': 'healthy',
+            'database': 'connected',
+            'files_count': count,
+            'timestamp': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return JsonResponse({
+            'status': 'unhealthy',
+            'error': str(e)
+        }, status=500)

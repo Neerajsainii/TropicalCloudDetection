@@ -24,4 +24,5 @@ urlpatterns = [
     path('api/analytics-data/', views.api_analytics_data, name='api_analytics_data'),
     path('api/analytics-data/<int:data_id>/', views.api_analytics_details, name='api_analytics_details'),
     path('api/system-status/', views.api_system_status, name='api_system_status'),
+    path('health/', views.health_check, name='health_check'),
 ] 
