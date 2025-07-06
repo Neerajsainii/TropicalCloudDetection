@@ -132,20 +132,30 @@ class CloudDetectionProcessor:
             os.makedirs(output_dir, exist_ok=True)
             self.log_message('info', f'Output directory ready: {output_dir}')
             
-            # Call the original algorithm exactly as provided
+            # Call the original algorithm exactly as provided with memory management
             self.log_message('info', 'Calling original algorithm...')
-            result = extract_tcc_mask(
-                filename=filename,
-                output_dir=output_dir,
-                min_radius_km=111,
-                pixel_resolution_km=4.0,
-                min_size_pixels=100
-            )
             
-            self.log_message('info', f'Algorithm completed for: {result["base_name"]}')
-            self.log_message('info', f'Generated files: BT, mask, and plot')
+            # Force garbage collection before processing
+            import gc
+            gc.collect()
             
-            return result
+            try:
+                result = extract_tcc_mask(
+                    filename=filename,
+                    output_dir=output_dir,
+                    min_radius_km=111,
+                    pixel_resolution_km=4.0,
+                    min_size_pixels=100
+                )
+                
+                self.log_message('info', f'Algorithm completed for: {result["base_name"]}')
+                self.log_message('info', f'Generated files: BT, mask, and plot')
+                
+                return result
+                
+            finally:
+                # Force cleanup after processing
+                gc.collect()
             
         except Exception as e:
             self.log_message('error', f'Failed to call original algorithm: {str(e)}')
@@ -188,11 +198,19 @@ class CloudDetectionProcessor:
             self.satellite_data.cloud_coverage_percentage = cloud_coverage
             self.satellite_data.cloud_cluster_count = cluster_count
             
-            # Store geographic bounds
-            self.satellite_data.min_latitude = float(np.nanmin(lat))
-            self.satellite_data.max_latitude = float(np.nanmax(lat))
-            self.satellite_data.min_longitude = float(np.nanmin(lon))
-            self.satellite_data.max_longitude = float(np.nanmax(lon))
+            # Store geographic bounds with error handling
+            try:
+                self.satellite_data.min_latitude = float(np.nanmin(lat))
+                self.satellite_data.max_latitude = float(np.nanmax(lat))
+                self.satellite_data.min_longitude = float(np.nanmin(lon))
+                self.satellite_data.max_longitude = float(np.nanmax(lon))
+            except (ValueError, RuntimeError):
+                # Fallback values if coordinate data is problematic
+                self.satellite_data.min_latitude = 5.0
+                self.satellite_data.max_latitude = 25.0
+                self.satellite_data.min_longitude = 70.0
+                self.satellite_data.max_longitude = 90.0
+                self.log_message('warning', 'Using fallback geographic bounds due to data issues')
             
             # Store temperature statistics
             valid_bt = bt_data[~np.isnan(bt_data)]

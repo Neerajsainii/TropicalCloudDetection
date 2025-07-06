@@ -69,8 +69,27 @@ def extract_tcc_mask(filename, output_dir, min_radius_km=111, pixel_resolution_k
 
 def save_plot(bt, final_mask, lat, lon, plot_path):
     """Save side-by-side plot of BT and TCC mask."""
-    extent = [np.nanmin(lon), np.nanmax(lon), np.nanmin(lat), np.nanmax(lat)]
+    import gc
+    
+    # Handle potential data issues with lat/lon arrays
+    try:
+        # Use masked arrays to handle NaN values more efficiently
+        lon_masked = np.ma.masked_invalid(lon)
+        lat_masked = np.ma.masked_invalid(lat)
+        
+        if lon_masked.count() > 0 and lat_masked.count() > 0:
+            extent = [lon_masked.min(), lon_masked.max(), lat_masked.min(), lat_masked.max()]
+        else:
+            raise ValueError("No valid coordinate data")
+            
+    except (ValueError, RuntimeError, AttributeError):
+        # Fallback to default extent if data is problematic
+        extent = [70, 90, 5, 25]  # Default India region
+        print("Warning: Using fallback geographic extent due to coordinate data issues")
 
+    # Force garbage collection before creating plot
+    gc.collect()
+    
     fig, axs = plt.subplots(1, 2, figsize=(14, 6))
     im1 = axs[0].imshow(bt, cmap='inferno', origin='upper', extent=extent)
     axs[0].set_title("Brightness Temperature (K)")
@@ -87,4 +106,10 @@ def save_plot(bt, final_mask, lat, lon, plot_path):
     plt.suptitle("INSAT-3DR: BT and Final TCC Mask", fontsize=16)
     plt.tight_layout()
     plt.savefig(plot_path, dpi=150)
-    plt.close() 
+    plt.close()
+    
+    # Force cleanup after plot creation
+    fig.clear()
+    plt.clf()
+    plt.close('all')
+    gc.collect() 

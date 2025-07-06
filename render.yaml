@@ -3,7 +3,7 @@ services:
     name: tropical-cloud-detection
     env: python
     buildCommand: "./build.sh"
-    startCommand: "gunicorn cloud_detection_portal.wsgi:application"
+    startCommand: "gunicorn cloud_detection_portal.wsgi:application -c gunicorn.conf.py"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
