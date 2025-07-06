@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Build script for Render deployment with SQLite
 # Exit on error
 set -o errexit
 
@@ -26,5 +27,10 @@ if not User.objects.filter(username='admin').exists():
 else:
     print('Superuser already exists')
 "
+
+# Create media directories for file uploads
+echo "Creating media directories..."
+mkdir -p media/results
+mkdir -p media/thumbnails
 
 echo "Build completed successfully!" 

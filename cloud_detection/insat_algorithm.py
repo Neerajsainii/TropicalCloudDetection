@@ -6,6 +6,8 @@ CONFIDENTIAL - Do not modify this algorithm
 import os
 import numpy as np
 import h5py
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to avoid Tkinter issues
 import matplotlib.pyplot as plt
 from skimage.morphology import remove_small_objects
 from skimage.measure import label, regionprops

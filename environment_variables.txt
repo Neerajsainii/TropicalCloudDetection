@@ -1,16 +1,26 @@
-# ENVIRONMENT VARIABLES FOR RENDER DEPLOYMENT
-# Copy these variables to your Render service environment variables
+# Production Environment Variables for Tropical Cloud Detection
 
 # Django Settings
-SECRET_KEY=your-secret-key-here
 DEBUG=False
+SECRET_KEY=your-secret-key-here
 ALLOWED_HOSTS=your-domain.onrender.com,localhost,127.0.0.1
 
-# Database (PostgreSQL for production)
-DATABASE_URL=postgresql://username:password@host:port/database
+# Security Settings
+SECURE_SSL_REDIRECT=False
+SECURE_PROXY_SSL_HEADER=HTTP_X_FORWARDED_PROTO,https
 
 # CORS Settings
 CORS_ALLOWED_ORIGINS=https://your-domain.onrender.com,http://localhost:3000
+
+# Database (SQLite - no additional configuration needed)
+# SQLite database will be created automatically
+
+# File Upload Settings
+FILE_UPLOAD_MAX_MEMORY_SIZE=524288000
+DATA_UPLOAD_MAX_MEMORY_SIZE=524288000
+
+# Database (PostgreSQL for production)
+DATABASE_URL=postgresql://username:password@host:port/database
 
 # Optional: AWS S3 for media files (if using S3 storage)
 # AWS_ACCESS_KEY_ID=your-aws-access-key

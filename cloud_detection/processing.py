@@ -1,5 +1,7 @@
 import numpy as np
 import h5py
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to avoid Tkinter issues
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.colors import LinearSegmentedColormap
@@ -77,7 +79,12 @@ class CloudDetectionProcessor:
             result = self.call_original_algorithm()
             
             # Adapt results to Django models
-            self.adapt_results_to_django(result)
+            try:
+                self.adapt_results_to_django(result)
+                self.log_message('info', 'Results adapted to Django models successfully')
+            except Exception as e:
+                self.log_message('error', f'Failed to adapt results to Django: {str(e)}')
+                raise
             
             # Mark as completed
             self.satellite_data.status = 'completed'

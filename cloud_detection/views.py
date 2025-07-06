@@ -20,6 +20,24 @@ logger = logging.getLogger(__name__)
 def home(request):
     """Main dashboard view with tabbed interface"""
     
+    # Clean up any stuck processing files (older than 1 hour)
+    from datetime import timedelta
+    stuck_files = SatelliteData.objects.filter(
+        status='processing',
+        upload_datetime__lt=timezone.now() - timedelta(hours=1)
+    )
+    if stuck_files.exists():
+        logger.warning(f"Found {stuck_files.count()} stuck processing files, marking as failed")
+        for file in stuck_files:
+            file.status = 'failed'
+            file.error_message = 'Processing timed out - file stuck in processing state'
+            file.save()
+            ProcessingLog.objects.create(
+                satellite_data=file,
+                level='error',
+                message='File marked as failed due to processing timeout'
+            )
+    
     # Get processed data for Cloud Analytics cards
     completed_data = SatelliteData.objects.filter(status='completed').order_by('-upload_datetime')[:12]
     
