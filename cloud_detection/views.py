@@ -111,8 +111,8 @@ def home(request):
 @csrf_exempt
 def upload_file(request):
     """Handle file upload with support for Google Cloud Storage files"""
-    if request.method != 'POST':
-        return redirect('cloud_detection:home')
+    if request.method == 'GET':
+        return render(request, 'cloud_detection/upload.html', {})
 
     try:
         # Check if this is a GCS upload (file already uploaded to GCS)

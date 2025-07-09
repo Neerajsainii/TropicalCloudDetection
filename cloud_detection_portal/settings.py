@@ -95,15 +95,15 @@ if ENVIRONMENT == 'production':
     print("🗄️ Using PostgreSQL database for production")
 else:
     # Local SQLite configuration
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
             'OPTIONS': {
                 'timeout': 20,
             }
-        }
     }
+}
     print("🗄️ Using SQLite database for local development")
 
 # Password validation

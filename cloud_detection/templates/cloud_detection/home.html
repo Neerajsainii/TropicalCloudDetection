@@ -279,7 +279,9 @@
                     <!-- Drag & Drop Area -->
                     <div class="upload-area mb-4 p-4 rounded-3 border border-dashed border-primary border-opacity-50 text-center"
                          style="background: rgba(59, 130, 246, 0.1); min-height: 200px; cursor: pointer;"
-                         onclick="document.getElementById('fileInput').click()">
+                         onclick="document.getElementById('fileInput').click()"
+                         ondragover="handleDragOver(event)"
+                         ondrop="handleDrop(event)">
                         <div class="upload-content">
                             <i class="fas fa-cloud-upload-alt text-primary fa-3x mb-3"></i>
                             <h6 class="text-white">Drag & Drop your satellite data file here</h6>
@@ -306,6 +308,19 @@
                         </div>
                     </div>
                     
+                    <!-- Progress Bar -->
+                    <div id="uploadProgress" class="mb-3" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-white small">Upload Progress</span>
+                            <span class="text-white small" id="progressText">0%</span>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar bg-cyan-400 progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 0%" id="progressBar"></div>
+                        </div>
+                        <div class="small text-white-50 mt-1" id="uploadStatus">Preparing upload...</div>
+                    </div>
+                    
                     <!-- Form Fields -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
@@ -323,16 +338,10 @@
                     </div>
                     
                     <!-- Upload Button -->
-                    <button type="submit" class="btn btn-glass w-100" id="uploadBtn">
+                    <button type="button" class="btn btn-glass w-100" id="uploadBtn" onclick="handleUploadSubmit()">
                         <i class="fas fa-cloud-upload-alt me-2"></i>
                         Upload & Process
                     </button>
-                    
-                    <!-- Progress Bar -->
-                    <div class="progress mt-3" style="display: none;" id="uploadProgress">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                             role="progressbar" style="width: 0%" id="progressBar"></div>
-                    </div>
                 </form>
             </div>
         </div>
@@ -693,10 +702,46 @@ function updateWeatherDisplay(data) {
     }
 }
 
-// File upload functionality
-document.getElementById('fileInput').addEventListener('change', function(e) {
-    const file = e.target.files[0];
+// File upload functionality with large file support
+let selectedFile = null;
+
+// Drag and drop handlers
+function handleDragOver(event) {
+    event.preventDefault();
+    event.currentTarget.classList.add('border-success');
+}
+
+function handleDrop(event) {
+    event.preventDefault();
+    event.currentTarget.classList.remove('border-success');
+    const files = event.dataTransfer.files;
+    if (files.length > 0) {
+        handleFileSelect({ target: { files: files } });
+    }
+}
+
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    selectedFile = file;
+    
     if (file) {
+        // Validate file type
+        const allowedTypes = ['.h5', '.hdf5', '.nc', '.netcdf'];
+        const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+        
+        if (!allowedTypes.includes(fileExtension)) {
+            alert('Please select a valid file type: HDF5 (.h5, .hdf5) or NetCDF (.nc, .netcdf)');
+            return;
+        }
+        
+        // Validate file size (500MB max)
+        const maxSize = 500 * 1024 * 1024; // 500MB
+        if (file.size > maxSize) {
+            alert('File size exceeds 500MB limit. Please select a smaller file.');
+            return;
+        }
+        
+        // Show file info
         document.getElementById('fileInfo').style.display = 'block';
         document.getElementById('fileName').textContent = file.name;
         document.getElementById('fileSize').textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
@@ -708,10 +753,235 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
         uploadArea.querySelector('.upload-content').innerHTML = `
             <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
             <h6 class="text-white">File selected: ${file.name}</h6>
-            <p class="text-white-50 small">Ready to upload</p>
+            <p class="text-white-50 small">Ready to upload • ${(file.size / 1024 / 1024).toFixed(2)} MB</p>
         `;
     }
-});
+}
+
+// Handle upload submission
+async function handleUploadSubmit() {
+    if (!selectedFile) {
+        alert('Please select a file first');
+        return;
+    }
+    
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressDiv = document.getElementById('uploadProgress');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const uploadStatus = document.getElementById('uploadStatus');
+    
+    // Disable upload button and show progress
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+    progressDiv.style.display = 'block';
+    
+    try {
+        const fileSize = selectedFile.size;
+        const fileName = selectedFile.name;
+        
+        // Check if file is large (>32MB) - use GCS upload
+        if (fileSize > 32 * 1024 * 1024) {
+            uploadStatus.textContent = 'Getting upload URL for large file...';
+            
+            // Get signed URL for GCS upload
+            const response = await fetch('/get-upload-url/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    file_name: fileName,
+                    file_size: fileSize
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to get upload URL');
+            }
+            
+            const data = await response.json();
+            uploadStatus.textContent = 'Uploading to Google Cloud Storage...';
+            
+            // Upload to GCS using signed URL
+            const gcsResponse = await fetch(data.upload_url, {
+                method: 'PUT',
+                body: selectedFile,
+                headers: {
+                    'Content-Type': selectedFile.type || 'application/octet-stream'
+                }
+            });
+            
+            if (!gcsResponse.ok) {
+                throw new Error('Failed to upload to Google Cloud Storage');
+            }
+            
+            // Simulate progress for GCS upload (since we can't track real progress with signed URLs)
+            for (let i = 0; i <= 100; i += 5) {
+                progressBar.style.width = i + '%';
+                progressText.textContent = i + '%';
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            
+            uploadStatus.textContent = 'Notifying server...';
+            
+            // Notify server that file was uploaded to GCS
+            const notifyResponse = await fetch('/upload/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    upload_source: 'gcs',
+                    file_name: fileName,
+                    gcs_path: data.gcs_path,
+                    file_size: fileSize,
+                    gcs_bucket: data.bucket_name
+                })
+            });
+            
+            if (!notifyResponse.ok) {
+                throw new Error('Failed to notify server');
+            }
+            
+            const result = await notifyResponse.json();
+            
+            uploadStatus.textContent = 'Upload complete! Processing started...';
+            
+            // Add to processing queue visually
+            addToProcessingQueue(fileName);
+            
+            // Reset form after 2 seconds
+            setTimeout(() => {
+                resetUploadForm();
+                if (result.redirect_url) {
+                    window.location.href = result.redirect_url;
+                }
+            }, 2000);
+            
+        } else {
+            // Small file - direct upload
+            uploadStatus.textContent = 'Uploading...';
+            
+            const formData = new FormData();
+            formData.append('file_path', selectedFile);
+            formData.append('satellite_name', document.querySelector('[name=satellite_name]').value);
+            formData.append('data_type', document.querySelector('[name=data_type]').value);
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            
+            // Use XMLHttpRequest for progress tracking
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    progressBar.style.width = percentComplete + '%';
+                    progressText.textContent = Math.round(percentComplete) + '%';
+                }
+            });
+            
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    const result = JSON.parse(xhr.responseText);
+                    uploadStatus.textContent = 'Upload complete! Processing started...';
+                    
+                    // Add to processing queue visually
+                    addToProcessingQueue(fileName);
+                    
+                    // Reset form after 2 seconds
+                    setTimeout(() => {
+                        resetUploadForm();
+                        if (result.redirect_url) {
+                            window.location.href = result.redirect_url;
+                        }
+                    }, 2000);
+                } else {
+                    throw new Error('Upload failed');
+                }
+            };
+            
+            xhr.onerror = function() {
+                throw new Error('Upload failed');
+            };
+            
+            xhr.open('POST', '/upload/');
+            xhr.send(formData);
+        }
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        uploadStatus.textContent = 'Upload failed: ' + error.message;
+        
+        // Reset button
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt me-2"></i>Upload & Process';
+        
+        // Hide progress after 3 seconds
+        setTimeout(() => {
+            progressDiv.style.display = 'none';
+        }, 3000);
+    }
+}
+
+// Add file to processing queue visually
+function addToProcessingQueue(fileName) {
+    const queueDiv = document.getElementById('processingQueue');
+    
+    // Remove "No files in queue" message if present
+    const emptyMessage = queueDiv.querySelector('.text-center');
+    if (emptyMessage) {
+        emptyMessage.remove();
+    }
+    
+    // Add new processing item
+    const newItem = document.createElement('div');
+    newItem.className = 'd-flex justify-content-between align-items-center p-2 mb-2 rounded';
+    newItem.style.background = 'rgba(255, 255, 255, 0.05)';
+    newItem.innerHTML = `
+        <div>
+            <div class="text-white small fw-medium">${fileName.length > 20 ? fileName.substring(0, 20) + '...' : fileName}</div>
+            <div class="text-white-50 small">Just now</div>
+        </div>
+        <div>
+            <span class="badge bg-warning bg-opacity-25 text-warning">
+                <i class="fas fa-spinner fa-spin me-1"></i>Processing
+            </span>
+        </div>
+    `;
+    
+    queueDiv.insertBefore(newItem, queueDiv.firstChild);
+}
+
+// Reset upload form
+function resetUploadForm() {
+    selectedFile = null;
+    document.getElementById('fileInput').value = '';
+    document.getElementById('fileInfo').style.display = 'none';
+    document.getElementById('uploadProgress').style.display = 'none';
+    
+    // Reset upload area
+    const uploadArea = document.querySelector('.upload-area');
+    uploadArea.style.border = '';
+    uploadArea.style.background = '';
+    uploadArea.querySelector('.upload-content').innerHTML = `
+        <i class="fas fa-cloud-upload-alt text-primary fa-3x mb-3"></i>
+        <h6 class="text-white">Drag & Drop your satellite data file here</h6>
+        <p class="text-white-50 small">or click to browse</p>
+        <div class="small text-white-50">
+            Supported: HDF5 (.h5, .hdf5), NetCDF (.nc, .netcdf) • Max: 500MB
+        </div>
+    `;
+    
+    // Reset button
+    const uploadBtn = document.getElementById('uploadBtn');
+    uploadBtn.disabled = false;
+    uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt me-2"></i>Upload & Process';
+}
+
+// Initialize file input handler
+document.getElementById('fileInput').addEventListener('change', handleFileSelect);
 
 // Analytics card modal functionality
 function showAnalyticsDetails(dataId) {
