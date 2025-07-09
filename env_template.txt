@@ -1,0 +1,34 @@
+# Environment Configuration Template
+# Copy this file to .env and update with your values
+
+# Environment (local or production)
+ENVIRONMENT=local
+
+# Debug mode (True for development, False for production)
+DEBUG=True
+
+# Django Secret Key (generate a new one for production)
+SECRET_KEY=django-insecure-&qrfp3c9n((d+^yv!yr0j#3x^x4gow&$$1l&&)%o9fmij)%ss=
+
+# Database Configuration
+# For local development (SQLite) - leave empty
+DATABASE_URL=
+
+# For production (PostgreSQL) - uncomment and update
+# DATABASE_URL=postgresql://cloud_user:password@host:5432/tropical_cloud_db
+
+# Allowed Hosts (comma-separated)
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# CORS Allowed Origins (comma-separated)
+CORS_ALLOWED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
+
+# CSRF Trusted Origins (comma-separated)
+CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
+
+# SSL Settings (for production)
+SECURE_SSL_REDIRECT=False
+
+# Google Cloud Storage (optional - for production)
+# GS_BUCKET_NAME=tropical-cloud-media
+# GS_STATIC_BUCKET_NAME=tropical-cloud-static 

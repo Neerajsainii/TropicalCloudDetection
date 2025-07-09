@@ -1,0 +1,5 @@
+ENVIRONMENT: "local"
+ALLOWED_HOSTS: "localhost,127.0.0.1,tropical-cloud-detection-1065844967286.us-central1.run.app"
+CORS_ALLOWED_ORIGINS: "https://tropical-cloud-detection-1065844967286.us-central1.run.app"
+CSRF_TRUSTED_ORIGINS: "https://tropical-cloud-detection-1065844967286.us-central1.run.app"
+GCS_BUCKET_NAME: "tropical-cloud-detection-uploads" 

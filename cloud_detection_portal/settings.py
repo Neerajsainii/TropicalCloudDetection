@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 import os
 from decouple import config, Csv
-# import dj_database_url  # Commented out for SQLite deployment
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,10 +21,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-&qrfp3c9n((d+^yv!yr0j#3x^x4gow&$$1l&&)%o9fmij)%ss=')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
+# Environment Configuration
+# Set ENVIRONMENT to 'local' for development, 'production' for production
+ENVIRONMENT = config('ENVIRONMENT', default='local')  # 'local' or 'production'
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = ENVIRONMENT == 'local'  # True for local, False for production
+
+# Host configuration
+ALLOWED_HOSTS = config(
+    'ALLOWED_HOSTS',
+    default='localhost,127.0.0.1,tropical-cloud-detection-1065844967286.us-central1.run.app',
+    cast=Csv()
+)
+print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
 # Application definition
 INSTALLED_APPS = [
@@ -41,7 +51,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    # 'whitenoise.middleware.WhiteNoiseMiddleware',  # Commented out for local development
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Enable for production
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -71,19 +81,30 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'cloud_detection_portal.wsgi.application'
 
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-
-# Production-ready SQLite configuration
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        'OPTIONS': {
-            'timeout': 20,  # 20 seconds timeout for production
+# Database Configuration for Google Cloud
+# Use PostgreSQL in production, SQLite for local development
+if ENVIRONMENT == 'production':
+    # Production PostgreSQL configuration
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=config('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+    print("🗄️ Using PostgreSQL database for production")
+else:
+    # Local SQLite configuration
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            'OPTIONS': {
+                'timeout': 20,
+            }
         }
     }
-}
+    print("🗄️ Using SQLite database for local development")
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -120,26 +141,58 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
 
-# WhiteNoise configuration for static files (commented out for local development)
-# STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# WhiteNoise configuration for static files
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files (User uploads)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# File upload settings for large satellite data files
-FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024  # 500MB for satellite data
-DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024   # 500MB for satellite data
+# File upload settings for satellite data files (32MB max for Cloud Run compatibility)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024  # 32MB for Cloud Run compatibility
+DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024   # 32MB for Cloud Run compatibility
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000               # Allow more form fields
 
+# Upload timeout settings
+FILE_UPLOAD_TIMEOUT = 300  # 5 minutes timeout for uploads
+
 # CORS settings
-CORS_ALLOWED_ORIGINS = config(
-    'CORS_ALLOWED_ORIGINS',
-    default="http://localhost:5173,http://127.0.0.1:8000,http://localhost:3000,http://127.0.0.1:3000",
-    cast=Csv()
-)
+if ENVIRONMENT == 'local':
+    # Local development - allow all origins for testing
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ]
+    CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in local mode
+    print("🔓 CORS: All origins allowed for local development")
+else:
+    # Production - strict CORS
+    CORS_ALLOWED_ORIGINS = config(
+        'CORS_ALLOWED_ORIGINS',
+        default="http://localhost:5173,http://127.0.0.1:8000,http://localhost:3000,http://127.0.0.1:3000",
+        cast=Csv()
+    )
+    CORS_ALLOW_ALL_ORIGINS = False
+    print("🔒 CORS: Strict origins for production")
 
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF settings based on environment
+if ENVIRONMENT == 'local':
+    # Local development - allow all origins for CSRF
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:8080',
+        'http://127.0.0.1:8080',
+    ]
+    print("🔓 CSRF: All local origins trusted for development")
+else:
+    # Production - strict CSRF
+    CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+    print("🔒 CSRF: Strict origins for production")
 
 # REST Framework settings
 REST_FRAMEWORK = {
@@ -156,9 +209,9 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Security settings for production
-if not DEBUG:
-    # Security middleware settings
+# Security settings based on environment
+if ENVIRONMENT == 'production':
+    # Production security settings
     SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_HSTS_SECONDS = 31536000  # 1 year
@@ -171,6 +224,19 @@ if not DEBUG:
     
     # Additional security headers
     X_FRAME_OPTIONS = 'DENY'
+    print("🔒 Production security settings enabled")
+else:
+    # Local development - relaxed security for easier testing
+    SECURE_SSL_REDIRECT = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+    SECURE_CONTENT_TYPE_NOSNIFF = False
+    SECURE_BROWSER_XSS_FILTER = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    X_FRAME_OPTIONS = 'SAMEORIGIN'
+    print("🔓 Local development - relaxed security for testing")
 
 # Logging configuration
 LOGGING = {
@@ -205,3 +271,6 @@ LOGGING = {
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Google Cloud Storage Configuration
+GCS_BUCKET_NAME = config('GCS_BUCKET_NAME', default='tropical-cloud-detection-uploads')

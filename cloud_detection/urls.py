@@ -9,6 +9,8 @@ urlpatterns = [
     
     # File operations
     path('upload/', views.upload_file, name='upload_file'),
+    path('upload-large/', views.upload_large_files, name='upload_large_files'),
+    path('get-upload-url/', views.get_upload_url, name='get_upload_url'),
     path('processing-status/<int:data_id>/', views.processing_status, name='processing_status'),
     path('retry-processing/<int:data_id>/', views.retry_processing, name='retry_processing'),
     path('results/<int:data_id>/', views.view_results, name='view_results'),

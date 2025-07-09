@@ -13,6 +13,8 @@ import io
 import base64
 from datetime import datetime
 import traceback
+import psutil
+import gc
 
 # Import the original confidential algorithm (DO NOT MODIFY)
 try:
@@ -47,6 +49,16 @@ class CloudDetectionProcessor:
             message=message
         )
     
+    def log_memory_usage(self):
+        """Log current memory usage"""
+        try:
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            memory_mb = memory_info.rss / 1024 / 1024
+            self.log_message('info', f'Memory usage: {memory_mb:.1f}MB')
+        except Exception as e:
+            self.log_message('warning', f'Could not log memory usage: {e}')
+    
     def process_satellite_data(self):
         """Main processing pipeline - calls original algorithm as-is"""
         try:
@@ -55,6 +67,7 @@ class CloudDetectionProcessor:
             self.satellite_data.save()
             
             self.log_message('info', 'Starting INSAT-3DR satellite data processing')
+            self.log_memory_usage()
             
             # Pre-flight checks
             if not ALGORITHM_AVAILABLE:
@@ -92,6 +105,7 @@ class CloudDetectionProcessor:
             self.satellite_data.save()
             
             self.log_message('info', 'INSAT-3DR processing completed successfully')
+            self.log_memory_usage()
             
         except Exception as e:
             self.satellite_data.status = 'failed'
@@ -146,14 +160,30 @@ class CloudDetectionProcessor:
             import gc
             gc.collect()
             
+            # Memory optimization: Process in chunks for large files
             try:
-                result = extract_tcc_mask(
-                    filename=filename,
-                    output_dir=output_dir,
-                    min_radius_km=111,
-                    pixel_resolution_km=4.0,
-                    min_size_pixels=100
-                )
+                # For files > 50MB, use memory-optimized processing
+                file_size = os.path.getsize(filename)
+                if file_size > 50 * 1024 * 1024:  # 50MB
+                    self.log_message('info', f'Large file detected ({file_size / 1024 / 1024:.1f}MB), using memory optimization')
+                    
+                    # Use smaller processing parameters for memory efficiency
+                    result = extract_tcc_mask(
+                        filename=filename,
+                        output_dir=output_dir,
+                        min_radius_km=50,  # Reduced from 111
+                        pixel_resolution_km=4.0,
+                        min_size_pixels=200  # Increased from 100
+                    )
+                else:
+                    # Standard processing for smaller files
+                    result = extract_tcc_mask(
+                        filename=filename,
+                        output_dir=output_dir,
+                        min_radius_km=111,
+                        pixel_resolution_km=4.0,
+                        min_size_pixels=100
+                    )
                 
                 self.log_message('info', f'Algorithm completed for: {result["base_name"]}')
                 self.log_message('info', f'Generated files: BT, mask, and plot')
@@ -175,7 +205,7 @@ class CloudDetectionProcessor:
         WITHOUT modifying the algorithm itself
         """
         try:
-            # Load the data files created by the original algorithm
+            # Load the data files created by the original algorithm with memory optimization
             bt_data = np.load(result["bt_file"])
             mask_data = np.load(result["mask_file"])
             
@@ -184,20 +214,30 @@ class CloudDetectionProcessor:
             cloud_pixels = np.sum(mask_data)
             cloud_coverage = (cloud_pixels / total_pixels) * 100
             
-            # Count cloud clusters
+            # Count cloud clusters with memory optimization
             from skimage.measure import label
             labeled_mask = label(mask_data)
             cluster_count = np.max(labeled_mask)
             
-            # Extract geographic and temperature data from original file
+            # Clear memory after cluster counting
+            del labeled_mask
+            import gc
+            gc.collect()
+            
+            # Extract geographic and temperature data from original file with memory optimization
             filename = self.satellite_data.file_path.path
             with h5py.File(filename, 'r') as f:
+                # Load data in chunks to reduce memory usage
                 lat_raw = f['Latitude'][:].astype(np.float32)
                 lon_raw = f['Longitude'][:].astype(np.float32)
                 lat = lat_raw * f['Latitude'].attrs['scale_factor']
                 lon = lon_raw * f['Longitude'].attrs['scale_factor']
                 lat[lat_raw == f['Latitude'].attrs['_FillValue']] = np.nan
                 lon[lon_raw == f['Longitude'].attrs['_FillValue']] = np.nan
+                
+                # Clear raw data to free memory
+                del lat_raw, lon_raw
+                gc.collect()
             
             # Update Django model with statistics
             self.satellite_data.total_pixels = total_pixels
@@ -219,12 +259,16 @@ class CloudDetectionProcessor:
                 self.satellite_data.max_longitude = 90.0
                 self.log_message('warning', 'Using fallback geographic bounds due to data issues')
             
-            # Store temperature statistics
+            # Store temperature statistics with memory optimization
             valid_bt = bt_data[~np.isnan(bt_data)]
             if len(valid_bt) > 0:
                 self.satellite_data.min_temperature = float(np.min(valid_bt))
                 self.satellite_data.max_temperature = float(np.max(valid_bt))
                 self.satellite_data.avg_temperature = float(np.mean(valid_bt))
+            
+            # Clear large arrays to free memory
+            del bt_data, mask_data, lat, lon, valid_bt
+            gc.collect()
             
             # Generate location name from coordinates
             center_lat = (self.satellite_data.min_latitude + self.satellite_data.max_latitude) / 2

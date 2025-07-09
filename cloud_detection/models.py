@@ -19,6 +19,14 @@ class SatelliteData(models.Model):
     file_path = models.FileField(upload_to='satellite_data/')
     file_size = models.BigIntegerField()
     
+    # Google Cloud Storage fields (for large files)
+    upload_source = models.CharField(max_length=20, default='direct', choices=[
+        ('direct', 'Direct Upload'),
+        ('gcs', 'Google Cloud Storage'),
+    ])
+    gcs_bucket = models.CharField(max_length=255, null=True, blank=True)
+    gcs_path = models.CharField(max_length=500, null=True, blank=True)
+    
     # Processing information
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     upload_datetime = models.DateTimeField(auto_now_add=True)
