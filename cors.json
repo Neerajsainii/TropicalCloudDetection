@@ -1,0 +1,25 @@
+[
+  {
+    "origin": [
+      "https://tropical-cloud-detection-1065844967286.us-central1.run.app",
+      "http://localhost:8000",
+      "http://127.0.0.1:8000"
+    ],
+    "method": [
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "responseHeader": [
+      "Content-Type",
+      "Access-Control-Allow-Origin",
+      "Access-Control-Allow-Methods",
+      "Access-Control-Allow-Headers",
+      "Access-Control-Max-Age"
+    ],
+    "maxAgeSeconds": 3600
+  }
+] 

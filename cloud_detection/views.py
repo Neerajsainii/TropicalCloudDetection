@@ -708,16 +708,26 @@ def get_upload_url(request):
             logger.info("Successfully generated signed URL")
         except Exception as sign_error:
             logger.error(f"Failed to generate signed URL: {sign_error}")
-            # Fallback: return a direct upload URL without signing
-            logger.info("Falling back to direct upload URL")
-            url = f"https://storage.googleapis.com/{bucket_name}/{filename}"
-            logger.warning("Using unsigned URL - this may not work for all clients")
+            # Fallback: use a different approach - return upload info for server-side upload
+            logger.info("Falling back to server-side upload approach")
+            url = None
+            logger.warning("Signed URL generation failed - will use server-side upload")
         
-        return JsonResponse({
-            'upload_url': url,
-            'filename': filename,
-            'bucket_name': bucket_name
-        })
+        if url:
+            return JsonResponse({
+                'upload_url': url,
+                'filename': filename,
+                'bucket_name': bucket_name,
+                'upload_method': 'signed_url'
+            })
+        else:
+            # Return info for server-side upload
+            return JsonResponse({
+                'filename': filename,
+                'bucket_name': bucket_name,
+                'upload_method': 'server_side',
+                'message': 'Signed URL generation failed. Please use the regular upload form for files under 32MB.'
+            })
         
     except Exception as e:
         logger.error(f"Error generating upload URL: {e}")
