@@ -82,29 +82,31 @@ TEMPLATES = [
 WSGI_APPLICATION = 'cloud_detection_portal.wsgi.application'
 
 # Database Configuration for Google Cloud
-# Use PostgreSQL in production, SQLite for local development
-if ENVIRONMENT == 'production':
+# Use PostgreSQL in production if DATABASE_URL is provided, otherwise SQLite
+database_url = config('DATABASE_URL', default='')
+
+if ENVIRONMENT == 'production' and database_url:
     # Production PostgreSQL configuration
     DATABASES = {
         'default': dj_database_url.config(
-            default=config('DATABASE_URL'),
+            default=database_url,
             conn_max_age=600,
             conn_health_checks=True,
         )
     }
     print("🗄️ Using PostgreSQL database for production")
 else:
-    # Local SQLite configuration
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    # SQLite configuration (for local development or production fallback)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
             'OPTIONS': {
                 'timeout': 20,
             }
+        }
     }
-}
-    print("🗄️ Using SQLite database for local development")
+    print("🗄️ Using SQLite database")
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
