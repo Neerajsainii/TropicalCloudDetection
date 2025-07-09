@@ -175,7 +175,7 @@ else:
     # Production - strict CORS
     CORS_ALLOWED_ORIGINS = config(
         'CORS_ALLOWED_ORIGINS',
-        default="http://localhost:5173,http://127.0.0.1:8000,http://localhost:3000,http://127.0.0.1:3000",
+        default="https://tropical-cloud-detection-1065844967286.us-central1.run.app",
         cast=Csv()
     )
     CORS_ALLOW_ALL_ORIGINS = False
@@ -193,7 +193,11 @@ if ENVIRONMENT == 'local':
     print("🔓 CSRF: All local origins trusted for development")
 else:
     # Production - strict CSRF
-    CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+    CSRF_TRUSTED_ORIGINS = config(
+        'CSRF_TRUSTED_ORIGINS', 
+        default='https://tropical-cloud-detection-1065844967286.us-central1.run.app',
+        cast=Csv()
+    )
     print("🔒 CSRF: Strict origins for production")
 
 # REST Framework settings

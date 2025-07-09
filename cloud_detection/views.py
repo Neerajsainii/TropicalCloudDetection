@@ -633,6 +633,7 @@ def upload_large_files(request):
     """Serve the large file upload page"""
     return render(request, 'cloud_detection/upload_large_files.html')
 
+@csrf_exempt
 def get_upload_url(request):
     """Generate signed URL for direct upload to Google Cloud Storage"""
     if not GCS_AVAILABLE:
