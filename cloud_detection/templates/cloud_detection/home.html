@@ -822,19 +822,17 @@ async function handleUploadSubmit() {
             uploadStatus.textContent = 'Notifying server...';
             
             // Notify server that file was uploaded to GCS
+            const formData = new FormData();
+            formData.append('upload_source', 'gcs');
+            formData.append('file_name', fileName);
+            formData.append('gcs_path', data.filename);
+            formData.append('file_size', fileSize);
+            formData.append('gcs_bucket', data.bucket_name);
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            
             const notifyResponse = await fetch('/upload/', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                },
-                body: JSON.stringify({
-                    upload_source: 'gcs',
-                    file_name: fileName,
-                    gcs_path: data.filename,
-                    file_size: fileSize,
-                    gcs_bucket: data.bucket_name
-                })
+                body: formData
             });
             
             if (!notifyResponse.ok) {
