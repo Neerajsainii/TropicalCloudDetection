@@ -31,7 +31,7 @@ DEBUG = ENVIRONMENT == 'local'  # True for local, False for production
 # Host configuration
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='localhost,127.0.0.1,tropical-cloud-detection-1065844967286.us-central1.run.app',
+    default='localhost,127.0.0.1,34.171.19.80,tropical-cloud-detection-1065844967286.us-central1.run.app',
     cast=Csv()
 )
 print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
