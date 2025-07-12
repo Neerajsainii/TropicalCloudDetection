@@ -759,162 +759,70 @@ function handleFileSelect(event) {
 }
 
 // Handle upload submission
-async function handleUploadSubmit() {
+async function handleUploadSubmit(event) {
+    event.preventDefault();
+    
     if (!selectedFile) {
         alert('Please select a file first');
         return;
     }
     
-    const uploadBtn = document.getElementById('uploadBtn');
-    const progressDiv = document.getElementById('uploadProgress');
+    const formData = new FormData();
+    formData.append('file_path', selectedFile);
+    formData.append('satellite_name', document.querySelector('[name=satellite_name]').value);
+    formData.append('data_type', document.querySelector('[name=data_type]').value);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    const uploadStatus = document.getElementById('uploadStatus');
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
-    const uploadStatus = document.getElementById('uploadStatus');
-    
-    // Disable upload button and show progress
-    uploadBtn.disabled = true;
-    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
-    progressDiv.style.display = 'block';
     
     try {
-        const fileSize = selectedFile.size;
-        const fileName = selectedFile.name;
+        uploadStatus.textContent = 'Uploading...';
         
-        // Check if file is large (>32MB) - use GCS upload
-        if (fileSize > 32 * 1024 * 1024) {
-            uploadStatus.textContent = 'Getting upload URL for large file...';
-            
-            // Get signed URL for GCS upload
-            const response = await fetch('/get-upload-url/', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to get upload URL');
+        // Use XMLHttpRequest for progress tracking
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const percentComplete = (e.loaded / e.total) * 100;
+                progressBar.style.width = percentComplete + '%';
+                progressText.textContent = Math.round(percentComplete) + '%';
             }
-            
-            const data = await response.json();
-            uploadStatus.textContent = 'Uploading to Google Cloud Storage...';
-            
-            // Upload to GCS using signed URL
-            const gcsResponse = await fetch(data.upload_url, {
-                method: 'PUT',
-                body: selectedFile,
-                headers: {
-                    'Content-Type': selectedFile.type || 'application/octet-stream'
-                }
-            });
-            
-            if (!gcsResponse.ok) {
-                throw new Error('Failed to upload to Google Cloud Storage');
-            }
-            
-            // Simulate progress for GCS upload (since we can't track real progress with signed URLs)
-            for (let i = 0; i <= 100; i += 5) {
-                progressBar.style.width = i + '%';
-                progressText.textContent = i + '%';
-                await new Promise(resolve => setTimeout(resolve, 50));
-            }
-            
-            uploadStatus.textContent = 'Notifying server...';
-            
-            // Notify server that file was uploaded to GCS
-            const formData = new FormData();
-            formData.append('upload_source', 'gcs');
-            formData.append('file_name', fileName);
-            formData.append('gcs_path', data.filename);
-            formData.append('file_size', fileSize);
-            formData.append('gcs_bucket', data.bucket_name);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            
-            const notifyResponse = await fetch('/upload/', {
-                method: 'POST',
-                body: formData
-            });
-            
-            if (!notifyResponse.ok) {
-                throw new Error('Failed to notify server');
-            }
-            
-            const result = await notifyResponse.json();
-            
-            uploadStatus.textContent = 'Upload complete! Processing started...';
-            
-            // Add to processing queue visually
-            addToProcessingQueue(fileName);
-            
-            // Reset form after 2 seconds
-            setTimeout(() => {
-                resetUploadForm();
-                if (result.redirect_url) {
-                    window.location.href = result.redirect_url;
-                }
-            }, 2000);
-            
-        } else {
-            // Small file - direct upload
-            uploadStatus.textContent = 'Uploading...';
-            
-            const formData = new FormData();
-            formData.append('file_path', selectedFile);
-            formData.append('satellite_name', document.querySelector('[name=satellite_name]').value);
-            formData.append('data_type', document.querySelector('[name=data_type]').value);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            
-            // Use XMLHttpRequest for progress tracking
-            const xhr = new XMLHttpRequest();
-            
-            xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                    const percentComplete = (e.loaded / e.total) * 100;
-                    progressBar.style.width = percentComplete + '%';
-                    progressText.textContent = Math.round(percentComplete) + '%';
-                }
-            });
-            
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    const result = JSON.parse(xhr.responseText);
-                    uploadStatus.textContent = 'Upload complete! Processing started...';
-                    
-                    // Add to processing queue visually
-                    addToProcessingQueue(fileName);
-                    
-                    // Reset form after 2 seconds
-                    setTimeout(() => {
-                        resetUploadForm();
-                        if (result.redirect_url) {
-                            window.location.href = result.redirect_url;
-                        }
-                    }, 2000);
-                } else {
-                    throw new Error('Upload failed');
-                }
-            };
-            
-            xhr.onerror = function() {
+        });
+        
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                const result = JSON.parse(xhr.responseText);
+                uploadStatus.textContent = 'Upload complete! Processing started...';
+                
+                // Add to processing queue visually
+                addToProcessingQueue(selectedFile.name);
+                
+                // Reset form after 2 seconds
+                setTimeout(() => {
+                    resetUploadForm();
+                    if (result.redirect_url) {
+                        window.location.href = result.redirect_url;
+                    }
+                }, 2000);
+            } else {
                 throw new Error('Upload failed');
-            };
-            
-            xhr.open('POST', '/upload/');
-            xhr.send(formData);
-        }
+            }
+        };
+        
+        xhr.onerror = function() {
+            throw new Error('Upload failed');
+        };
+        
+        xhr.open('POST', '/upload/');
+        xhr.send(formData);
         
     } catch (error) {
         console.error('Upload error:', error);
         uploadStatus.textContent = 'Upload failed: ' + error.message;
-        
-        // Reset button
-        uploadBtn.disabled = false;
-        uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt me-2"></i>Upload & Process';
-        
-        // Hide progress after 3 seconds
-        setTimeout(() => {
-            progressDiv.style.display = 'none';
-        }, 3000);
+        progressBar.style.width = '0%';
+        progressText.textContent = '';
     }
 }
 

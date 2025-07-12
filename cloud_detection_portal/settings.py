@@ -31,7 +31,7 @@ DEBUG = ENVIRONMENT == 'local'  # True for local, False for production
 # Host configuration
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='localhost,127.0.0.1,34.171.19.80,tropical-cloud-detection-1065844967286.us-central1.run.app',
+    default='localhost,127.0.0.1,34.171.19.80,tropical-cloud-detection-1065844967286.us-central1.run.app,8080-cs-15438411-b0b1-4166-8d53-738b145e4280.cs-asia-southeast1-kelp.cloudshell.dev',
     cast=Csv()
 )
 print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
@@ -150,13 +150,13 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# File upload settings for satellite data files (32MB max for Cloud Run compatibility)
-FILE_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024  # 32MB for Cloud Run compatibility
-DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024   # 32MB for Cloud Run compatibility
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000               # Allow more form fields
+# File upload settings - No limits for Compute Engine
+FILE_UPLOAD_MAX_MEMORY_SIZE = None  # No memory size limit
+DATA_UPLOAD_MAX_MEMORY_SIZE = None  # No data upload size limit
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000  # Keep reasonable form field limit
 
 # Upload timeout settings
-FILE_UPLOAD_TIMEOUT = 300  # 5 minutes timeout for uploads
+FILE_UPLOAD_TIMEOUT = 600  # 10 minutes for large files
 
 # CORS settings
 if ENVIRONMENT == 'local':
@@ -168,6 +168,7 @@ if ENVIRONMENT == 'local':
         "http://127.0.0.1:3000",
         "http://localhost:8080",
         "http://127.0.0.1:8080",
+        "https://8080-cs-15438411-b0b1-4166-8d53-738b145e4280.cs-asia-southeast1-kelp.cloudshell.dev",
     ]
     CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in local mode
     print("🔓 CORS: All origins allowed for local development")
@@ -189,6 +190,7 @@ if ENVIRONMENT == 'local':
     CSRF_TRUSTED_ORIGINS = [
         'http://localhost:8080',
         'http://127.0.0.1:8080',
+        'https://8080-cs-15438411-b0b1-4166-8d53-738b145e4280.cs-asia-southeast1-kelp.cloudshell.dev',
     ]
     print("🔓 CSRF: All local origins trusted for development")
 else:
@@ -277,6 +279,3 @@ LOGGING = {
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# Google Cloud Storage Configuration
-GCS_BUCKET_NAME = config('GCS_BUCKET_NAME', default='tropical-cloud-detection-uploads')
