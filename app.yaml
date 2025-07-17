@@ -30,8 +30,8 @@ automatic_scaling:
   max_pending_latency: 10s
 
 resources:
-  cpu: 2
-  memory_gb: 3
+  cpu: 4.0
+  memory_gb: 16
   disk_size_gb: 20
 
-entrypoint: gunicorn -b :$PORT cloud_detection_portal.wsgi:application --timeout 300 --workers 3 --threads 4 
+entrypoint: gunicorn -b :$PORT cloud_detection_portal.wsgi:application --timeout 900 --workers 3 --threads 4 --worker-class sync 

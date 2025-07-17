@@ -31,7 +31,7 @@ DEBUG = ENVIRONMENT == 'local'  # True for local, False for production
 # Host configuration
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='localhost,127.0.0.1,34.171.19.80,tropical-cloud-detection-1065844967286.us-central1.run.app,8080-cs-15438411-b0b1-4166-8d53-738b145e4280.cs-asia-southeast1-kelp.cloudshell.dev',
+    default='localhost,127.0.0.1,tropical-cloud-detection-1065844967286.us-central1.run.app,tropical-cloud-detection-yowzoapc2q-uc.a.run.app,8080-cs-15438411-b0b1-4166-8d53-738b145e4280.cs-asia-southeast1-kelp.cloudshell.dev',
     cast=Csv()
 )
 print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
@@ -81,7 +81,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'cloud_detection_portal.wsgi.application'
 
-# Database Configuration for Google Cloud
+# Database Configuration for Cloud Run
 # Use PostgreSQL in production if DATABASE_URL is provided, otherwise SQLite
 database_url = config('DATABASE_URL', default='')
 
@@ -150,13 +150,13 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# File upload settings - No limits for Compute Engine
-FILE_UPLOAD_MAX_MEMORY_SIZE = None  # No memory size limit
-DATA_UPLOAD_MAX_MEMORY_SIZE = None  # No data upload size limit
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000  # Keep reasonable form field limit
+# File upload settings for Cloud Run (32MB max for Cloud Run compatibility)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024  # 32MB for Cloud Run compatibility
+DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024   # 32MB for Cloud Run compatibility
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000               # Allow more form fields
 
 # Upload timeout settings
-FILE_UPLOAD_TIMEOUT = 600  # 10 minutes for large files
+FILE_UPLOAD_TIMEOUT = 300  # 5 minutes timeout for uploads
 
 # CORS settings
 if ENVIRONMENT == 'local':
@@ -279,3 +279,7 @@ LOGGING = {
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Google Cloud Storage Configuration for Cloud Run
+GCS_BUCKET_NAME = config('GCS_BUCKET_NAME', default='tropical-cloud-detection-uploads')
+GOOGLE_CLOUD_PROJECT = config('GOOGLE_CLOUD_PROJECT', default='tropical-cloud-detection')

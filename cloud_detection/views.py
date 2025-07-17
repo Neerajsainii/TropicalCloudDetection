@@ -110,21 +110,101 @@ def home(request):
 
 @csrf_exempt
 def upload_file(request):
-    """Handle file upload with direct processing"""
+    """Handle file upload with Cloud Run compatibility"""
     if request.method == 'GET':
         return render(request, 'cloud_detection/upload.html', {})
 
     try:
-        # Handle direct file upload
-        if 'file_path' in request.FILES:
-            uploaded_file = request.FILES['file_path']
-            logger.info(f"Direct file upload: {uploaded_file.name}, Size: {uploaded_file.size} bytes")
+        # Check if this is a GCS upload (file already uploaded to GCS)
+        upload_source = request.POST.get('upload_source', 'direct')
+        
+        if upload_source == 'gcs':
+            # File was uploaded to GCS, create database record
+            file_name = request.POST.get('file_name')
+            gcs_path = request.POST.get('gcs_path')
+            file_size = request.POST.get('file_size')
+            gcs_bucket = request.POST.get('gcs_bucket')
+            
+            if not all([file_name, gcs_path, file_size, gcs_bucket]):
+                return JsonResponse({'error': 'Missing required GCS file information'}, status=400)
+            
+            # Create SatelliteData record for GCS file
+            satellite_data = SatelliteData.objects.create(
+                file_name=file_name,
+                file_path=gcs_path,  # Store GCS path
+                file_size=int(file_size),
+                status='pending',
+                upload_source='gcs',
+                gcs_bucket=gcs_bucket,
+                gcs_path=gcs_path
+            )
+            
+            logger.info(f"GCS file record created: {satellite_data.file_name}")
+            
+            # Start processing in background
+            try:
+                import threading
+                
+                def process_in_background():
+                    try:
+                        from .processing import CloudDetectionProcessor
+                        processor = CloudDetectionProcessor(satellite_data)
+                        processor.process_satellite_data()
+                        logger.info(f"Processing completed for GCS file: {satellite_data.file_name}")
+                        
+                    except Exception as e:
+                        logger.error(f"Processing failed for GCS file {satellite_data.file_name}: {e}")
+                        satellite_data.refresh_from_db()
+                        satellite_data.status = 'failed'
+                        satellite_data.error_message = str(e)
+                        satellite_data.save()
+                        ProcessingLog.objects.create(
+                            satellite_data=satellite_data,
+                            level='error',
+                            message=f'Processing failed: {e}'
+                        )
+                
+                # Start processing in background thread
+                processing_thread = threading.Thread(target=process_in_background)
+                processing_thread.daemon = True
+                processing_thread.start()
+                
+                logger.info(f"Processing started in background for GCS file: {satellite_data.file_name}")
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'File uploaded to GCS and processing started',
+                    'data_id': satellite_data.id,
+                    'redirect_url': reverse('cloud_detection:processing_status', args=[satellite_data.id])
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to start processing for GCS file: {e}")
+                satellite_data.status = 'failed'
+                satellite_data.error_message = str(e)
+                satellite_data.save()
+                return JsonResponse({'error': f'Failed to start processing: {e}'}, status=500)
+        
+        else:
+            # Handle direct file upload (for small files < 32MB)
+            if 'file_path' in request.FILES:
+                uploaded_file = request.FILES['file_path']
+                file_size = uploaded_file.size
+                
+                # Check if file is too large for direct upload
+                if file_size > 32 * 1024 * 1024:  # 32MB
+                    return JsonResponse({
+                        'error': 'File too large for direct upload. Please use the large file upload interface.',
+                        'max_size': '32MB'
+                    }, status=413)
+                
+                logger.info(f"Direct file upload: {uploaded_file.name}, Size: {file_size} bytes")
             
             form = SatelliteDataForm(request.POST, request.FILES)
             
             if form.is_valid():
                 try:
-                    # Save the file
+                    # Save the file first
                     satellite_data = form.save()
                     logger.info(f"File saved successfully: {satellite_data.file_name}")
                     
@@ -132,7 +212,7 @@ def upload_file(request):
                     satellite_data.status = 'pending'
                     satellite_data.save()
                     
-                    # Start processing in background
+                    # Start processing in background (asynchronous)
                     try:
                         import threading
                         
@@ -201,8 +281,6 @@ def upload_file(request):
                     for error in field_errors:
                         errors.append(f"{field}: {error}")
                 return JsonResponse({'error': 'Form validation failed', 'details': errors}, status=400)
-        else:
-            return JsonResponse({'error': 'No file provided'}, status=400)
                 
     except Exception as e:
         logger.error(f"Unexpected error during upload: {e}")
