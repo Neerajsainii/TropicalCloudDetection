@@ -34,17 +34,17 @@ gsutil iam ch allUsers:objectViewer gs://$BUCKET_NAME
 # Build and deploy to Cloud Run
 echo "🏗️ Building and deploying application..."
 
-# Deploy with high-performance configuration
+# Deploy with high-performance configuration and quota-compliant scaling
 gcloud run deploy $SERVICE_NAME \
   --source . \
   --platform managed \
   --region $REGION \
   --allow-unauthenticated \
   --cpu 4 \
-  --memory 16Gi \
+  --memory 8Gi \
   --concurrency 1 \
-  --min-instances 1 \
-  --max-instances 10 \
+  --min-instances 0 \
+  --max-instances 2 \
   --timeout 900 \
   --set-env-vars ENVIRONMENT=production,DEBUG=False,GCS_BUCKET_NAME=$BUCKET_NAME,GOOGLE_CLOUD_PROJECT=$PROJECT_ID \
   --port 8080
@@ -55,12 +55,12 @@ SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --form
 echo "✅ Deployment complete!"
 echo "🌐 Your application is live at: $SERVICE_URL"
 echo ""
-echo "📊 Performance Configuration:"
+echo "📊 High-Performance Configuration:"
 echo "   - CPU: 4 vCPUs"
-echo "   - Memory: 16GB"
+echo "   - Memory: 8GB"
 echo "   - Concurrency: 1 (CPU-intensive processing)"
-echo "   - Min instances: 1 (always ready)"
-echo "   - Max instances: 10 (auto-scaling)"
+echo "   - Min instances: 0 (cost optimization)"
+echo "   - Max instances: 2 (quota-compliant scaling)"
 echo "   - Timeout: 15 minutes"
 echo ""
 echo "💾 Storage:"

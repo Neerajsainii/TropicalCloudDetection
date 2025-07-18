@@ -784,128 +784,78 @@ async function handleUploadSubmit(event) {
         const fileSize = selectedFile.size;
         const fileName = selectedFile.name;
         
-        // Check if file is large (>32MB) - use GCS upload
-        if (fileSize > 32 * 1024 * 1024) {
-            uploadStatus.textContent = 'Getting upload URL for large file...';
-            
-            // Get signed URL for GCS upload
-            const response = await fetch('/get-upload-url/', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to get upload URL');
+        // Always use GCS upload since files are >40MB
+        uploadStatus.textContent = 'Getting upload URL for large file...';
+        
+        // Get signed URL for GCS upload
+        const response = await fetch('/get-upload-url/', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
             }
-            
-            const data = await response.json();
-            uploadStatus.textContent = 'Uploading to Google Cloud Storage...';
-            
-            // Upload to GCS using signed URL
-            const gcsResponse = await fetch(data.upload_url, {
-                method: 'PUT',
-                body: selectedFile,
-                headers: {
-                    'Content-Type': selectedFile.type || 'application/octet-stream'
-                }
-            });
-            
-            if (!gcsResponse.ok) {
-                throw new Error('Failed to upload to Google Cloud Storage');
-            }
-            
-            // Simulate progress for GCS upload (since we can't track real progress with signed URLs)
-            for (let i = 0; i <= 100; i += 5) {
-                progressBar.style.width = i + '%';
-                progressText.textContent = i + '%';
-                await new Promise(resolve => setTimeout(resolve, 50));
-            }
-            
-            uploadStatus.textContent = 'Notifying server...';
-            
-            // Notify server that file was uploaded to GCS
-            const formData = new FormData();
-            formData.append('upload_source', 'gcs');
-            formData.append('file_name', fileName);
-            formData.append('gcs_path', data.filename);
-            formData.append('file_size', fileSize);
-            formData.append('gcs_bucket', data.bucket_name);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            
-            const notifyResponse = await fetch('/upload/', {
-                method: 'POST',
-                body: formData
-            });
-            
-            if (!notifyResponse.ok) {
-                throw new Error('Failed to notify server');
-            }
-            
-            const result = await notifyResponse.json();
-            
-            uploadStatus.textContent = 'Upload complete! Processing started...';
-            
-            // Add to processing queue visually
-            addToProcessingQueue(fileName);
-            
-            // Reset form after 2 seconds
-            setTimeout(() => {
-                resetUploadForm();
-                if (result.redirect_url) {
-                    window.location.href = result.redirect_url;
-                }
-            }, 2000);
-            
-        } else {
-            // Small file - direct upload
-            uploadStatus.textContent = 'Uploading...';
-            
-            const formData = new FormData();
-            formData.append('file_path', selectedFile);
-            formData.append('satellite_name', document.querySelector('[name=satellite_name]').value);
-            formData.append('data_type', document.querySelector('[name=data_type]').value);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            
-            // Use XMLHttpRequest for progress tracking
-            const xhr = new XMLHttpRequest();
-            
-            xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                    const percentComplete = (e.loaded / e.total) * 100;
-                    progressBar.style.width = percentComplete + '%';
-                    progressText.textContent = Math.round(percentComplete) + '%';
-                }
-            });
-            
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    const result = JSON.parse(xhr.responseText);
-                    uploadStatus.textContent = 'Upload complete! Processing started...';
-                    
-                    // Add to processing queue visually
-                    addToProcessingQueue(fileName);
-                    
-                    // Reset form after 2 seconds
-                    setTimeout(() => {
-                        resetUploadForm();
-                        if (result.redirect_url) {
-                            window.location.href = result.redirect_url;
-                        }
-                    }, 2000);
-                } else {
-                    throw new Error('Upload failed');
-                }
-            };
-            
-            xhr.onerror = function() {
-                throw new Error('Upload failed');
-            };
-            
-            xhr.open('POST', '/upload/');
-            xhr.send(formData);
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to get upload URL');
         }
+        
+        const data = await response.json();
+        uploadStatus.textContent = 'Uploading to Google Cloud Storage...';
+        
+        // Optimized GCS upload with progress tracking
+        const startTime = Date.now();
+        const gcsResponse = await fetch(data.upload_url, {
+            method: 'PUT',
+            body: selectedFile,
+            headers: {
+                'Content-Type': selectedFile.type || 'application/octet-stream'
+            }
+        });
+        
+        if (!gcsResponse.ok) {
+            throw new Error('Failed to upload to Google Cloud Storage');
+        }
+        
+        const uploadTime = (Date.now() - startTime) / 1000;
+        const uploadSpeed = (fileSize / 1024 / 1024) / uploadTime;
+        
+        // Show real upload progress
+        progressBar.style.width = '100%';
+        progressText.textContent = '100%';
+        uploadStatus.textContent = `Upload complete! (${uploadSpeed.toFixed(1)}MB/s)`;
+        
+        // Notify server that file was uploaded to GCS
+        const formData = new FormData();
+        formData.append('upload_source', 'gcs');
+        formData.append('file_name', fileName);
+        formData.append('gcs_path', data.filename);
+        formData.append('file_size', fileSize);
+        formData.append('gcs_bucket', data.bucket_name);
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        
+        const notifyResponse = await fetch('/upload/', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!notifyResponse.ok) {
+            throw new Error('Failed to notify server');
+        }
+        
+        const result = await notifyResponse.json();
+        
+        uploadStatus.textContent = 'Processing started...';
+        
+        // Add to processing queue visually
+        addToProcessingQueue(fileName);
+        
+        // Reset form after 2 seconds
+        setTimeout(() => {
+            resetUploadForm();
+            if (result.redirect_url) {
+                window.location.href = result.redirect_url;
+            }
+        }, 2000);
         
     } catch (error) {
         console.error('Upload error:', error);

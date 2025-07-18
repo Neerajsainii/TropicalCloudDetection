@@ -60,44 +60,50 @@ class CloudDetectionProcessor:
             self.log_message('warning', f'Could not log memory usage: {e}')
     
     def process_satellite_data(self):
-        """Main processing pipeline - calls original algorithm as-is"""
+        """
+        Process satellite data using the original algorithm
+        """
         try:
             self.satellite_data.status = 'processing'
             self.satellite_data.processing_start_time = timezone.now()
             self.satellite_data.save()
             
-            self.log_message('info', 'Starting INSAT-3DR satellite data processing')
+            self.log_message('info', f'Starting processing for: {self.satellite_data.file_name}')
             self.log_memory_usage()
             
-            # Pre-flight checks
-            if not ALGORITHM_AVAILABLE:
-                raise Exception("Original INSAT algorithm not available")
-            
-            if not H5PY_AVAILABLE:
-                # Try to import h5py again
-                try:
-                    import h5py
-                    self.log_message('info', f'h5py imported successfully: {h5py.__version__}')
-                except ImportError as e:
-                    raise Exception(f"h5py not available: {e}")
+            # Check if this is a GCS file or local file
+            if self.satellite_data.upload_source == 'gcs':
+                self.log_message('info', 'Processing GCS file - downloading to temporary location')
+                # Download file from GCS to temporary location
+                temp_file_path = self.download_gcs_file()
+                self.log_message('info', f'GCS file downloaded to: {temp_file_path}')
+            else:
+                # Local file - use existing path
+                temp_file_path = self.satellite_data.file_path.path
+                self.log_message('info', f'Processing local file: {temp_file_path}')
             
             # Test file access
-            if not os.path.exists(self.satellite_data.file_path.path):
-                raise Exception(f"File not found: {self.satellite_data.file_path.path}")
+            if not os.path.exists(temp_file_path):
+                raise Exception(f"File not found: {temp_file_path}")
             
             self.log_message('info', f'Processing file: {self.satellite_data.file_name}')
-            self.log_message('info', f'File path: {self.satellite_data.file_path.path}')
+            self.log_message('info', f'File path: {temp_file_path}')
             
-            # Call the original algorithm exactly as provided
-            result = self.call_original_algorithm()
+            # Call the original algorithm with the correct file path
+            result = self.call_original_algorithm(temp_file_path)
             
             # Adapt results to Django models
             try:
-                self.adapt_results_to_django(result)
+                self.adapt_results_to_django(result, temp_file_path)
                 self.log_message('info', 'Results adapted to Django models successfully')
             except Exception as e:
                 self.log_message('error', f'Failed to adapt results to Django: {str(e)}')
                 raise
+            
+            # Clean up temporary file if it was downloaded from GCS
+            if self.satellite_data.upload_source == 'gcs' and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+                self.log_message('info', 'Temporary GCS file cleaned up')
             
             # Mark as completed
             self.satellite_data.status = 'completed'
@@ -116,14 +122,59 @@ class CloudDetectionProcessor:
             self.log_message('error', f'Processing failed: {str(e)}')
             self.log_message('debug', f'Traceback: {traceback.format_exc()}')
     
-    def call_original_algorithm(self):
+    def download_gcs_file(self):
         """
-        Call the original algorithm exactly as provided by the user
-        WITHOUT ANY MODIFICATIONS to the algorithm itself
+        Download file from Google Cloud Storage to temporary location with optimizations
         """
         try:
-            # Get file path
-            filename = self.satellite_data.file_path.path
+            from google.cloud import storage
+            import tempfile
+            import time
+            
+            start_time = time.time()
+            
+            # Initialize GCS client
+            storage_client = storage.Client()
+            bucket = storage_client.bucket(self.satellite_data.gcs_bucket)
+            blob = bucket.blob(self.satellite_data.gcs_path)
+            
+            # Get blob metadata for progress tracking
+            blob.reload()
+            file_size = blob.size
+            file_size_mb = file_size / 1024 / 1024
+            
+            self.log_message('info', f'Starting GCS download: {file_size_mb:.1f}MB')
+            self.log_message('info', f'GCS path: gs://{self.satellite_data.gcs_bucket}/{self.satellite_data.gcs_path}')
+            
+            # Create temporary file
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.h5')
+            temp_file_path = temp_file.name
+            temp_file.close()
+            
+            # Download file from GCS with progress tracking
+            self.log_message('info', 'Downloading from GCS...')
+            
+            # Use direct download for all files (simpler and more reliable)
+            blob.download_to_filename(temp_file_path)
+            
+            download_time = time.time() - start_time
+            download_speed = file_size_mb / download_time
+            
+            self.log_message('info', f'Download completed in {download_time:.1f}s ({download_speed:.1f}MB/s)')
+            self.log_message('info', f'File downloaded successfully to: {temp_file_path}')
+            
+            return temp_file_path
+            
+        except Exception as e:
+            self.log_message('error', f'Failed to download GCS file: {str(e)}')
+            raise Exception(f"GCS download failed: {str(e)}")
+    
+    def call_original_algorithm(self, filename):
+        """
+        Call the original algorithm with performance optimizations
+        """
+        try:
+            # Get file path (now passed as parameter)
             base_name = os.path.basename(filename).split('_L1B')[0] if '_L1B' in filename else os.path.splitext(os.path.basename(filename))[0]
             
             # Create output directory 
@@ -131,6 +182,11 @@ class CloudDetectionProcessor:
             
             self.log_message('info', f'Processing file: {base_name}')
             self.log_message('info', f'Output directory: {output_dir}')
+            
+            # Performance optimization: Check file size and optimize accordingly
+            file_size = os.path.getsize(filename)
+            file_size_mb = file_size / 1024 / 1024
+            self.log_message('info', f'File size: {file_size_mb:.1f}MB')
             
             # Additional pre-flight checks
             self.log_message('info', 'Performing pre-flight checks...')
@@ -142,10 +198,15 @@ class CloudDetectionProcessor:
             except ImportError as e:
                 raise Exception(f"h5py import failed before algorithm call: {e}")
             
-            # Test file readability
+            # Test file readability with performance logging
             try:
                 with h5py.File(filename, 'r') as test_file:
-                    self.log_message('info', f'File readable, contains keys: {list(test_file.keys())}')
+                    keys = list(test_file.keys())
+                    self.log_message('info', f'File readable, contains keys: {keys}')
+                    # Log dataset shapes for performance analysis
+                    for key in keys:
+                        if hasattr(test_file[key], 'shape'):
+                            self.log_message('info', f'Dataset {key}: shape {test_file[key].shape}')
             except Exception as e:
                 raise Exception(f"Cannot read HDF5 file: {e}")
             
@@ -153,53 +214,62 @@ class CloudDetectionProcessor:
             os.makedirs(output_dir, exist_ok=True)
             self.log_message('info', f'Output directory ready: {output_dir}')
             
-            # Call the original algorithm exactly as provided with memory management
-            self.log_message('info', 'Calling original algorithm...')
-            
-            # Force garbage collection before processing
+            # Performance optimization: Memory management
+            self.log_message('info', 'Optimizing memory for processing...')
             import gc
             gc.collect()
             
-            # Memory optimization: Process in chunks for large files
-            try:
-                # For files > 50MB, use memory-optimized processing
-                file_size = os.path.getsize(filename)
-                if file_size > 50 * 1024 * 1024:  # 50MB
-                    self.log_message('info', f'Large file detected ({file_size / 1024 / 1024:.1f}MB), using memory optimization')
-                    
-                    # Use smaller processing parameters for memory efficiency
-                    result = extract_tcc_mask(
-                        filename=filename,
-                        output_dir=output_dir,
-                        min_radius_km=50,  # Reduced from 111
-                        pixel_resolution_km=4.0,
-                        min_size_pixels=200  # Increased from 100
-                    )
-                else:
-                    # Standard processing for smaller files
-                    result = extract_tcc_mask(
-                        filename=filename,
-                        output_dir=output_dir,
-                        min_radius_km=111,
-                        pixel_resolution_km=4.0,
-                        min_size_pixels=100
-                    )
-                
-                self.log_message('info', f'Algorithm completed for: {result["base_name"]}')
-                self.log_message('info', f'Generated files: BT, mask, and plot')
-                
-                return result
-                
-            finally:
-                # Force cleanup after processing
-                gc.collect()
+            # Force garbage collection and memory cleanup
+            if hasattr(gc, 'collect'):
+                collected = gc.collect()
+                self.log_message('info', f'Garbage collection: {collected} objects collected')
+            
+            # Performance optimization: Algorithm parameters based on file size
+            if file_size > 100 * 1024 * 1024:  # 100MB+
+                self.log_message('info', f'Large file detected ({file_size_mb:.1f}MB), using aggressive optimization')
+                # Aggressive optimization for very large files
+                result = extract_tcc_mask(
+                    filename=filename,
+                    output_dir=output_dir,
+                    min_radius_km=25,  # Very reduced for speed
+                    pixel_resolution_km=8.0,  # Coarser resolution
+                    min_size_pixels=500  # Larger minimum size
+                )
+            elif file_size > 50 * 1024 * 1024:  # 50-100MB
+                self.log_message('info', f'Medium file detected ({file_size_mb:.1f}MB), using moderate optimization')
+                # Moderate optimization for medium files
+                result = extract_tcc_mask(
+                    filename=filename,
+                    output_dir=output_dir,
+                    min_radius_km=50,  # Reduced from 111
+                    pixel_resolution_km=4.0,
+                    min_size_pixels=200  # Increased from 100
+                )
+            else:
+                self.log_message('info', f'Small file detected ({file_size_mb:.1f}MB), using standard processing')
+                # Standard processing for smaller files
+                result = extract_tcc_mask(
+                    filename=filename,
+                    output_dir=output_dir,
+                    min_radius_km=111,
+                    pixel_resolution_km=4.0,
+                    min_size_pixels=100
+                )
+            
+            self.log_message('info', f'Algorithm completed for: {result["base_name"]}')
+            self.log_message('info', f'Generated files: BT, mask, and plot')
+            
+            # Final memory cleanup
+            gc.collect()
+            
+            return result
             
         except Exception as e:
             self.log_message('error', f'Failed to call original algorithm: {str(e)}')
             self.log_message('debug', f'Full traceback: {traceback.format_exc()}')
             raise
     
-    def adapt_results_to_django(self, result):
+    def adapt_results_to_django(self, result, filename):
         """
         Adapt the results from the original algorithm to Django models
         WITHOUT modifying the algorithm itself
@@ -225,7 +295,6 @@ class CloudDetectionProcessor:
             gc.collect()
             
             # Extract geographic and temperature data from original file with memory optimization
-            filename = self.satellite_data.file_path.path
             with h5py.File(filename, 'r') as f:
                 # Load data in chunks to reduce memory usage
                 lat_raw = f['Latitude'][:].astype(np.float32)

@@ -115,8 +115,8 @@ def upload_file(request):
         return render(request, 'cloud_detection/upload.html', {})
 
     try:
-        # Check if this is a GCS upload (file already uploaded to GCS)
-        upload_source = request.POST.get('upload_source', 'direct')
+        # Handle GCS upload (files are always >40MB)
+        upload_source = request.POST.get('upload_source', 'gcs')
         
         if upload_source == 'gcs':
             # File was uploaded to GCS, create database record
@@ -184,103 +184,8 @@ def upload_file(request):
                 satellite_data.error_message = str(e)
                 satellite_data.save()
                 return JsonResponse({'error': f'Failed to start processing: {e}'}, status=500)
-        
         else:
-            # Handle direct file upload (for small files < 32MB)
-            if 'file_path' in request.FILES:
-                uploaded_file = request.FILES['file_path']
-                file_size = uploaded_file.size
-                
-                # Check if file is too large for direct upload
-                if file_size > 32 * 1024 * 1024:  # 32MB
-                    return JsonResponse({
-                        'error': 'File too large for direct upload. Please use the large file upload interface.',
-                        'max_size': '32MB'
-                    }, status=413)
-                
-                logger.info(f"Direct file upload: {uploaded_file.name}, Size: {file_size} bytes")
-            
-            form = SatelliteDataForm(request.POST, request.FILES)
-            
-            if form.is_valid():
-                try:
-                    # Save the file first
-                    satellite_data = form.save()
-                    logger.info(f"File saved successfully: {satellite_data.file_name}")
-                    
-                    # Set initial status
-                    satellite_data.status = 'pending'
-                    satellite_data.save()
-                    
-                    # Start processing in background (asynchronous)
-                    try:
-                        import threading
-                        
-                        def process_in_background():
-                            try:
-                                # Check available memory before processing
-                                import psutil
-                                memory = psutil.virtual_memory()
-                                available_mb = memory.available / 1024 / 1024
-                                logger.info(f"Available memory before processing: {available_mb:.1f}MB")
-                                
-                                # If less than 200MB available, warn but continue
-                                if available_mb < 200:
-                                    logger.warning(f"Low memory available: {available_mb:.1f}MB")
-                                    ProcessingLog.objects.create(
-                                        satellite_data=satellite_data,
-                                        level='warning',
-                                        message=f'Low memory available: {available_mb:.1f}MB'
-                                    )
-                                
-                                from .processing import CloudDetectionProcessor
-                                processor = CloudDetectionProcessor(satellite_data)
-                                processor.process_satellite_data()
-                                logger.info(f"Processing completed for file: {satellite_data.file_name}")
-                                
-                            except Exception as e:
-                                logger.error(f"Processing failed for {satellite_data.file_name}: {e}")
-                                satellite_data.refresh_from_db()
-                                satellite_data.status = 'failed'
-                                satellite_data.error_message = str(e)
-                                satellite_data.save()
-                                ProcessingLog.objects.create(
-                                    satellite_data=satellite_data,
-                                    level='error',
-                                    message=f'Processing failed: {e}'
-                                )
-                        
-                        # Start processing in background thread
-                        processing_thread = threading.Thread(target=process_in_background)
-                        processing_thread.daemon = True
-                        processing_thread.start()
-                        
-                        logger.info(f"Processing started in background for: {satellite_data.file_name}")
-                        
-                        return JsonResponse({
-                            'success': True,
-                            'message': 'File uploaded successfully! Processing started in background.',
-                            'data_id': satellite_data.id,
-                            'redirect_url': reverse('cloud_detection:processing_status', args=[satellite_data.id])
-                        })
-                        
-                    except Exception as e:
-                        logger.error(f"Failed to start processing: {e}")
-                        satellite_data.status = 'failed'
-                        satellite_data.error_message = str(e)
-                        satellite_data.save()
-                        return JsonResponse({'error': f'Failed to start processing: {e}'}, status=500)
-                    
-                except Exception as e:
-                    logger.error(f"File upload failed: {e}")
-                    return JsonResponse({'error': f"File upload failed: {e}"}, status=500)
-            else:
-                # Form is invalid
-                errors = []
-                for field, field_errors in form.errors.items():
-                    for error in field_errors:
-                        errors.append(f"{field}: {error}")
-                return JsonResponse({'error': 'Form validation failed', 'details': errors}, status=400)
+            return JsonResponse({'error': 'Only GCS uploads are supported'}, status=400)
                 
     except Exception as e:
         logger.error(f"Unexpected error during upload: {e}")
