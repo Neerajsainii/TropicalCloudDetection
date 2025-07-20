@@ -291,36 +291,7 @@
                 }
                 
                 const data = await response.json();
-                const { upload_url, filename, bucket_name, upload_method, message } = data;
-                
-                // Check if we got a valid upload URL
-                if (!upload_url || upload_method === 'server_side') {
-                    showStatus('⚠️ GCS upload not available. Using regular upload...', 'error');
-                    
-                    // Fallback to regular upload
-                    const formData = new FormData();
-                    formData.append('file', selectedFile);
-                    
-                    const uploadResponse = await fetch('/upload/', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    if (uploadResponse.ok) {
-                        const result = await uploadResponse.json();
-                        showStatus('✅ File uploaded successfully! Processing started.', 'success');
-                        console.log('Upload result:', result);
-                        
-                        // Reset form
-                        setTimeout(() => {
-                            resetForm();
-                        }, 3000);
-                    } else {
-                        const errorData = await uploadResponse.json();
-                        throw new Error(errorData.error || 'Upload failed');
-                    }
-                    return;
-                }
+                const { upload_url, filename, bucket_name } = data;
                 
                 showStatus('📤 Uploading to Google Cloud Storage...', 'success');
                 
