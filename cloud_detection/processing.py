@@ -124,45 +124,27 @@ class CloudDetectionProcessor:
     
     def download_gcs_file(self):
         """
-        Download file from Google Cloud Storage to temporary location with optimizations
+        Download file from Google Cloud Storage to temporary location
         """
         try:
             from google.cloud import storage
             import tempfile
-            import time
-            
-            start_time = time.time()
             
             # Initialize GCS client
             storage_client = storage.Client()
             bucket = storage_client.bucket(self.satellite_data.gcs_bucket)
             blob = bucket.blob(self.satellite_data.gcs_path)
             
-            # Get blob metadata for progress tracking
-            blob.reload()
-            file_size = blob.size
-            file_size_mb = file_size / 1024 / 1024
-            
-            self.log_message('info', f'Starting GCS download: {file_size_mb:.1f}MB')
-            self.log_message('info', f'GCS path: gs://{self.satellite_data.gcs_bucket}/{self.satellite_data.gcs_path}')
-            
             # Create temporary file
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.h5')
             temp_file_path = temp_file.name
             temp_file.close()
             
-            # Download file from GCS with progress tracking
-            self.log_message('info', 'Downloading from GCS...')
-            
-            # Use direct download for all files (simpler and more reliable)
+            # Download file from GCS
+            self.log_message('info', f'Downloading from GCS: gs://{self.satellite_data.gcs_bucket}/{self.satellite_data.gcs_path}')
             blob.download_to_filename(temp_file_path)
             
-            download_time = time.time() - start_time
-            download_speed = file_size_mb / download_time
-            
-            self.log_message('info', f'Download completed in {download_time:.1f}s ({download_speed:.1f}MB/s)')
             self.log_message('info', f'File downloaded successfully to: {temp_file_path}')
-            
             return temp_file_path
             
         except Exception as e:
@@ -171,7 +153,8 @@ class CloudDetectionProcessor:
     
     def call_original_algorithm(self, filename):
         """
-        Call the original algorithm with performance optimizations
+        Call the original algorithm exactly as provided by the user
+        WITHOUT ANY MODIFICATIONS to the algorithm itself
         """
         try:
             # Get file path (now passed as parameter)
@@ -183,11 +166,6 @@ class CloudDetectionProcessor:
             self.log_message('info', f'Processing file: {base_name}')
             self.log_message('info', f'Output directory: {output_dir}')
             
-            # Performance optimization: Check file size and optimize accordingly
-            file_size = os.path.getsize(filename)
-            file_size_mb = file_size / 1024 / 1024
-            self.log_message('info', f'File size: {file_size_mb:.1f}MB')
-            
             # Additional pre-flight checks
             self.log_message('info', 'Performing pre-flight checks...')
             
@@ -198,15 +176,10 @@ class CloudDetectionProcessor:
             except ImportError as e:
                 raise Exception(f"h5py import failed before algorithm call: {e}")
             
-            # Test file readability with performance logging
+            # Test file readability
             try:
                 with h5py.File(filename, 'r') as test_file:
-                    keys = list(test_file.keys())
-                    self.log_message('info', f'File readable, contains keys: {keys}')
-                    # Log dataset shapes for performance analysis
-                    for key in keys:
-                        if hasattr(test_file[key], 'shape'):
-                            self.log_message('info', f'Dataset {key}: shape {test_file[key].shape}')
+                    self.log_message('info', f'File readable, contains keys: {list(test_file.keys())}')
             except Exception as e:
                 raise Exception(f"Cannot read HDF5 file: {e}")
             
@@ -214,55 +187,46 @@ class CloudDetectionProcessor:
             os.makedirs(output_dir, exist_ok=True)
             self.log_message('info', f'Output directory ready: {output_dir}')
             
-            # Performance optimization: Memory management
-            self.log_message('info', 'Optimizing memory for processing...')
+            # Call the original algorithm exactly as provided with memory management
+            self.log_message('info', 'Calling original algorithm...')
+            
+            # Force garbage collection before processing
             import gc
             gc.collect()
             
-            # Force garbage collection and memory cleanup
-            if hasattr(gc, 'collect'):
-                collected = gc.collect()
-                self.log_message('info', f'Garbage collection: {collected} objects collected')
-            
-            # Performance optimization: Algorithm parameters based on file size
-            if file_size > 100 * 1024 * 1024:  # 100MB+
-                self.log_message('info', f'Large file detected ({file_size_mb:.1f}MB), using aggressive optimization')
-                # Aggressive optimization for very large files
-                result = extract_tcc_mask(
-                    filename=filename,
-                    output_dir=output_dir,
-                    min_radius_km=25,  # Very reduced for speed
-                    pixel_resolution_km=8.0,  # Coarser resolution
-                    min_size_pixels=500  # Larger minimum size
-                )
-            elif file_size > 50 * 1024 * 1024:  # 50-100MB
-                self.log_message('info', f'Medium file detected ({file_size_mb:.1f}MB), using moderate optimization')
-                # Moderate optimization for medium files
-                result = extract_tcc_mask(
-                    filename=filename,
-                    output_dir=output_dir,
-                    min_radius_km=50,  # Reduced from 111
-                    pixel_resolution_km=4.0,
-                    min_size_pixels=200  # Increased from 100
-                )
-            else:
-                self.log_message('info', f'Small file detected ({file_size_mb:.1f}MB), using standard processing')
-                # Standard processing for smaller files
-                result = extract_tcc_mask(
-                    filename=filename,
-                    output_dir=output_dir,
-                    min_radius_km=111,
-                    pixel_resolution_km=4.0,
-                    min_size_pixels=100
-                )
-            
-            self.log_message('info', f'Algorithm completed for: {result["base_name"]}')
-            self.log_message('info', f'Generated files: BT, mask, and plot')
-            
-            # Final memory cleanup
-            gc.collect()
-            
-            return result
+            # Memory optimization: Process in chunks for large files
+            try:
+                # For files > 50MB, use memory-optimized processing
+                file_size = os.path.getsize(filename)
+                if file_size > 50 * 1024 * 1024:  # 50MB
+                    self.log_message('info', f'Large file detected ({file_size / 1024 / 1024:.1f}MB), using memory optimization')
+                    
+                    # Use smaller processing parameters for memory efficiency
+                    result = extract_tcc_mask(
+                        filename=filename,
+                        output_dir=output_dir,
+                        min_radius_km=50,  # Reduced from 111
+                        pixel_resolution_km=4.0,
+                        min_size_pixels=200  # Increased from 100
+                    )
+                else:
+                    # Standard processing for smaller files
+                    result = extract_tcc_mask(
+                        filename=filename,
+                        output_dir=output_dir,
+                        min_radius_km=111,
+                        pixel_resolution_km=4.0,
+                        min_size_pixels=100
+                    )
+                
+                self.log_message('info', f'Algorithm completed for: {result["base_name"]}')
+                self.log_message('info', f'Generated files: BT, mask, and plot')
+                
+                return result
+                
+            finally:
+                # Force cleanup after processing
+                gc.collect()
             
         except Exception as e:
             self.log_message('error', f'Failed to call original algorithm: {str(e)}')

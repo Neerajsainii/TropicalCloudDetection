@@ -1,7 +1,7 @@
 # 🔧 Manual Google Cloud Storage Fix
 
 ## 🚨 **Current Issue**
-The `/get-upload-url/` endpoint returns 500 error because the Cloud Run service account doesn't have proper permissions to access Google Cloud Storage.
+The `/get-upload-url/` endpoint returns `upload_method: "server_side"` because the Cloud Run service account doesn't have proper permissions to generate signed URLs for Google Cloud Storage.
 
 ## 🛠️ **Manual Fix Steps**
 
@@ -38,7 +38,49 @@ The `/get-upload-url/` endpoint returns 500 error because the Cloud Run service 
    - `Storage Object Creator`
    - `Storage Legacy Bucket Reader`
 
-### **Step 5: Deploy Updated Code**
+### **Step 5: Alternative - Use gcloud CLI**
+If you have gcloud CLI installed, run these commands:
+
+```bash
+# Set project
+gcloud config set project tropical-cloud-detection
+
+# Grant IAM roles
+gcloud projects add-iam-policy-binding tropical-cloud-detection \
+  --member=serviceAccount:1065844967286-compute@developer.gserviceaccount.com \
+  --role=roles/storage.objectViewer
+
+gcloud projects add-iam-policy-binding tropical-cloud-detection \
+  --member=serviceAccount:1065844967286-compute@developer.gserviceaccount.com \
+  --role=roles/storage.objectCreator
+
+gcloud projects add-iam-policy-binding tropical-cloud-detection \
+  --member=serviceAccount:1065844967286-compute@developer.gserviceaccount.com \
+  --role=roles/storage.legacyBucketReader
+
+# Create bucket if it doesn't exist
+gsutil mb -p tropical-cloud-detection -c STANDARD -l us-central1 gs://tropical-cloud-detection-uploads
+
+# Grant bucket-specific permissions
+gcloud storage buckets add-iam-policy-binding gs://tropical-cloud-detection-uploads \
+  --member=serviceAccount:1065844967286-compute@developer.gserviceaccount.com \
+  --role=roles/storage.objectViewer
+
+gcloud storage buckets add-iam-policy-binding gs://tropical-cloud-detection-uploads \
+  --member=serviceAccount:1065844967286-compute@developer.gserviceaccount.com \
+  --role=roles/storage.objectCreator
+```
+
+### **Step 6: Test the Fix**
+After applying the permissions, test the endpoint:
+
+```bash
+curl -s "https://tropical-cloud-detection-1065844967286.us-central1.run.app/get-upload-url/" | python -m json.tool
+```
+
+You should see a response with `upload_url` field instead of `upload_method: "server_side"`.
+
+### **Step 7: Deploy Updated Code**
 After fixing permissions, deploy the updated code with better error handling:
 
 ```bash
@@ -46,40 +88,30 @@ After fixing permissions, deploy the updated code with better error handling:
 gcloud run deploy tropical-cloud-detection --source . --region=us-central1 --project=tropical-cloud-detection --allow-unauthenticated --memory=3Gi --cpu=2 --timeout=300 --max-instances=5
 ```
 
-### **Step 6: Test the Fix**
-1. Go to: https://tropical-cloud-detection-1065844967286.us-central1.run.app/upload-large/
-2. Try uploading a file
-3. Check if `/get-upload-url/` now works
-
-## 🔍 **Alternative: Use gcloud Commands**
-
-If you install Google Cloud SDK, run these commands:
-
-```bash
-# Set project
-gcloud config set project tropical-cloud-detection
-
-# Grant permissions
-gsutil iam ch serviceAccount:1065844967286-compute@developer.gserviceaccount.com:objectViewer gs://tropical-cloud-detection-uploads
-gsutil iam ch serviceAccount:1065844967286-compute@developer.gserviceaccount.com:objectCreator gs://tropical-cloud-detection-uploads
-gsutil iam ch serviceAccount:1065844967286-compute@developer.gserviceaccount.com:legacyBucketReader gs://tropical-cloud-detection-uploads
-
-# Create bucket if it doesn't exist
-gsutil mb -p tropical-cloud-detection gs://tropical-cloud-detection-uploads
-```
-
-## 📊 **Expected Result**
-After fixing permissions, the `/get-upload-url/` endpoint should return:
+## 🎯 **Expected Result**
+After the fix, the `/get-upload-url/` endpoint should return:
 ```json
 {
   "upload_url": "https://storage.googleapis.com/...",
-  "filename": "satellite_data_uuid.h5",
-  "bucket_name": "tropical-cloud-detection-uploads"
+  "filename": "satellite_data_xxx.h5",
+  "bucket_name": "tropical-cloud-detection-uploads",
+  "upload_method": "signed_url"
 }
 ```
 
-## 🚨 **If Still Getting 500 Errors**
-1. Check Cloud Run logs in Google Cloud Console
-2. Look for specific error messages
-3. Verify the service account has all required permissions
+Instead of:
+```json
+{
+  "filename": "satellite_data_xxx.h5",
+  "bucket_name": "tropical-cloud-detection-uploads", 
+  "upload_method": "server_side",
+  "message": "Signed URL generation failed. Please use the regular upload form for files under 32MB."
+}
+```
+
+## 🔍 **Troubleshooting**
+If the fix doesn't work immediately:
+1. Wait 5-10 minutes for permissions to propagate
+2. Check Cloud Run logs for specific error messages
+3. Verify the service account has the correct permissions
 4. Ensure the bucket exists and is accessible 
