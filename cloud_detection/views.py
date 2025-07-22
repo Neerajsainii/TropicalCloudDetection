@@ -185,6 +185,78 @@ def upload_file(request):
                 satellite_data.save()
                 return JsonResponse({'error': f'Failed to start processing: {e}'}, status=500)
         
+        elif upload_source == 'local':
+            # Handle fallback local upload
+            if 'file' not in request.FILES:
+                return JsonResponse({'error': 'No file provided'}, status=400)
+            
+            uploaded_file = request.FILES['file']
+            file_size = uploaded_file.size
+            
+            # Check if file is too large for direct upload
+            if file_size > 32 * 1024 * 1024:  # 32MB
+                return JsonResponse({
+                    'error': 'File too large for direct upload. Please use the large file upload interface.',
+                    'max_size': '32MB'
+                }, status=413)
+            
+            logger.info(f"Local fallback upload: {uploaded_file.name}, Size: {file_size} bytes")
+            
+            # Create SatelliteData record for local file
+            satellite_data = SatelliteData.objects.create(
+                file_name=uploaded_file.name,
+                file_path=uploaded_file,
+                file_size=file_size,
+                status='pending',
+                upload_source='local'
+            )
+            
+            logger.info(f"Local file record created: {satellite_data.file_name}")
+            
+            # Start processing in background
+            try:
+                import threading
+                
+                def process_in_background():
+                    try:
+                        from .processing import CloudDetectionProcessor
+                        processor = CloudDetectionProcessor(satellite_data)
+                        processor.process_satellite_data()
+                        logger.info(f"Processing completed for local file: {satellite_data.file_name}")
+                        
+                    except Exception as e:
+                        logger.error(f"Processing failed for local file {satellite_data.file_name}: {e}")
+                        satellite_data.refresh_from_db()
+                        satellite_data.status = 'failed'
+                        satellite_data.error_message = str(e)
+                        satellite_data.save()
+                        ProcessingLog.objects.create(
+                            satellite_data=satellite_data,
+                            level='error',
+                            message=f'Processing failed: {e}'
+                        )
+                
+                # Start processing in background thread
+                processing_thread = threading.Thread(target=process_in_background)
+                processing_thread.daemon = True
+                processing_thread.start()
+                
+                logger.info(f"Processing started in background for local file: {satellite_data.file_name}")
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'File uploaded and processing started',
+                    'data_id': satellite_data.id,
+                    'redirect_url': reverse('cloud_detection:processing_status', args=[satellite_data.id])
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to start processing for local file: {e}")
+                satellite_data.status = 'failed'
+                satellite_data.error_message = str(e)
+                satellite_data.save()
+                return JsonResponse({'error': f'Failed to start processing: {e}'}, status=500)
+        
         else:
             # Handle direct file upload (for small files < 32MB)
             if 'file_path' in request.FILES:
@@ -651,7 +723,15 @@ def get_upload_url(request):
             storage_client = storage.Client.from_service_account_json(service_account_key)
         else:
             logger.info("Using default credentials")
-            storage_client = storage.Client()
+            try:
+                storage_client = storage.Client()
+            except Exception as auth_error:
+                logger.error(f"Failed to initialize GCS client: {auth_error}")
+                return JsonResponse({
+                    'error': 'Google Cloud Storage authentication failed',
+                    'details': 'Please check your GCP credentials and permissions',
+                    'fallback': True
+                }, status=500)
         
         bucket_name = settings.GCS_BUCKET_NAME
         logger.info(f"Using bucket: {bucket_name}")
