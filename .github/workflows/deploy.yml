@@ -64,7 +64,7 @@ jobs:
             
             # Create systemd service if needed
             if [ ! -f /etc/systemd/system/tropical-cloud-detection.service ]; then
-              sudo tee /etc/systemd/system/tropical-cloud-detection.service > /dev/null <<EOF
+              sudo bash -c 'cat > /etc/systemd/system/tropical-cloud-detection.service << \"SERVICEOF\"
 [Unit]
 Description=Tropical Cloud Detection Django App
 After=network.target
@@ -82,14 +82,14 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SERVICEOF'
               sudo systemctl daemon-reload
               sudo systemctl enable tropical-cloud-detection
             fi
             
             # Setup nginx if needed
             if [ ! -f /etc/nginx/sites-available/tropical-cloud-detection ]; then
-              sudo tee /etc/nginx/sites-available/tropical-cloud-detection > /dev/null <<EOF
+              sudo bash -c 'cat > /etc/nginx/sites-available/tropical-cloud-detection << \"NGINXOF\"
 server {
     listen 8080;
     server_name _;
@@ -105,12 +105,12 @@ server {
     
     location / {
         proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \\\$host;
-        proxy_set_header X-Real-IP \\\$remote_addr;
-        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
 }
-EOF
+NGINXOF'
               sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/
               sudo rm -f /etc/nginx/sites-enabled/default
               sudo systemctl enable nginx
