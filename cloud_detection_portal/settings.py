@@ -153,13 +153,53 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# File upload settings for Cloud Run (32MB max for Cloud Run compatibility)
-FILE_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024  # 32MB for Cloud Run compatibility
-DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024   # 32MB for Cloud Run compatibility
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000               # Allow more form fields
+# File upload settings optimized for Compute Engine (removed Cloud Run 32MB limitation)
+if ENVIRONMENT == 'production':
+    # Production settings optimized for 50-100MB file processing in 30-40 seconds
+    FILE_UPLOAD_MAX_MEMORY_SIZE = config('FILE_UPLOAD_MAX_MEMORY_SIZE', default=209715200, cast=int)  # 200MB default
+    DATA_UPLOAD_MAX_MEMORY_SIZE = config('DATA_UPLOAD_MAX_MEMORY_SIZE', default=209715200, cast=int)   # 200MB default
+    DATA_UPLOAD_MAX_NUMBER_FIELDS = config('DATA_UPLOAD_MAX_NUMBER_FIELDS', default=1000, cast=int)
+    FILE_UPLOAD_TIMEOUT = config('FILE_UPLOAD_TIMEOUT', default=300, cast=int)  # 5 minutes timeout
+    print(f"📤 File upload settings: {FILE_UPLOAD_MAX_MEMORY_SIZE // (1024*1024)}MB max size")
+else:
+    # Local development settings
+    FILE_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024  # 32MB for local development
+    DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024   # 32MB for local development
+    DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+    FILE_UPLOAD_TIMEOUT = 300  # 5 minutes timeout
+    print("📤 Local development file upload: 32MB max size")
 
-# Upload timeout settings
-FILE_UPLOAD_TIMEOUT = 300  # 5 minutes timeout for uploads
+# Session and cache settings for better performance on Compute Engine
+if ENVIRONMENT == 'production':
+    # Use database sessions for better reliability
+    SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+    SESSION_COOKIE_AGE = 86400  # 1 day
+    SESSION_SAVE_EVERY_REQUEST = False
+    
+    # Cache configuration (you can add Redis later for better performance)
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'django_cache_table',
+        }
+    }
+else:
+    # Local development cache
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+    }
+
+# Memory optimization for scientific computing
+if ENVIRONMENT == 'production':
+    # Optimized for fast 50-100MB file processing (30-40 seconds)
+    GUNICORN_WORKERS = config('GUNICORN_WORKERS', default=6, cast=int)
+    GUNICORN_TIMEOUT = config('GUNICORN_TIMEOUT', default=600, cast=int)  # 10 minutes for safety
+    GUNICORN_MAX_REQUESTS = config('GUNICORN_MAX_REQUESTS', default=100, cast=int)  # Restart workers more frequently
+    GUNICORN_MAX_REQUESTS_JITTER = config('GUNICORN_MAX_REQUESTS_JITTER', default=10, cast=int)
+    
+    print(f"⚡ Gunicorn settings: {GUNICORN_WORKERS} workers, {GUNICORN_TIMEOUT}s timeout")
 
 # CORS settings
 if ENVIRONMENT == 'local':

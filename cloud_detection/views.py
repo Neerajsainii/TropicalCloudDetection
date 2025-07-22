@@ -638,7 +638,11 @@ def get_upload_url(request):
     """Generate signed URL for direct upload to Google Cloud Storage"""
     if not GCS_AVAILABLE:
         logger.error("Google Cloud Storage library not available")
-        return JsonResponse({'error': 'Google Cloud Storage not available'}, status=500)
+        return JsonResponse({
+            'error': 'Google Cloud Storage not available',
+            'message': 'Large file upload is not available. Please use files under 32MB.',
+            'upload_method': 'unavailable'
+        }, status=500)
     
     try:
         # Initialize Google Cloud Storage client
@@ -709,26 +713,20 @@ def get_upload_url(request):
             logger.info("Successfully generated signed URL")
         except Exception as sign_error:
             logger.error(f"Failed to generate signed URL: {sign_error}")
-            # Fallback: use a different approach - return upload info for server-side upload
-            logger.info("Falling back to server-side upload approach")
-            url = None
-            logger.warning("Signed URL generation failed - will use server-side upload")
+            # Return error response with detailed message
+            return JsonResponse({
+                'error': 'Failed to generate upload URL',
+                'message': f'Google Cloud Storage authentication failed: {str(sign_error)}. Please ensure your service account has proper permissions.',
+                'details': 'Check if GOOGLE_APPLICATION_CREDENTIALS is set correctly and the service account has Storage Object Admin permissions.',
+                'upload_method': 'failed'
+            }, status=500)
         
-        if url:
-            return JsonResponse({
-                'upload_url': url,
-                'filename': filename,
-                'bucket_name': bucket_name,
-                'upload_method': 'signed_url'
-            })
-        else:
-            # Return info for server-side upload
-            return JsonResponse({
-                'filename': filename,
-                'bucket_name': bucket_name,
-                'upload_method': 'server_side',
-                'message': 'Signed URL generation failed. Please use the regular upload form for files under 32MB.'
-            })
+        return JsonResponse({
+            'upload_url': url,
+            'filename': filename,
+            'bucket_name': bucket_name,
+            'upload_method': 'signed_url'
+        })
         
     except Exception as e:
         logger.error(f"Error generating upload URL: {e}")

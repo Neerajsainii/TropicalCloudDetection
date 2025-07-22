@@ -801,6 +801,14 @@ async function handleUploadSubmit(event) {
             }
             
             const data = await response.json();
+            
+            // Check if upload_url is available
+            if (!data.upload_url) {
+                const errorMsg = data.message || 'Failed to get upload URL. Please use the regular upload form for files under 32MB.';
+                console.error('GCS Upload Error:', data);
+                throw new Error(errorMsg);
+            }
+            
             uploadStatus.textContent = 'Uploading to Google Cloud Storage...';
             
             // Upload to GCS using signed URL
@@ -909,7 +917,16 @@ async function handleUploadSubmit(event) {
         
     } catch (error) {
         console.error('Upload error:', error);
-        uploadStatus.textContent = 'Upload failed: ' + error.message;
+        
+        // Provide specific error messages
+        let errorMessage = error.message;
+        if (error.message.includes('Failed to get upload URL')) {
+            errorMessage = 'Large file upload is currently unavailable. Please use files under 32MB or contact support.';
+        } else if (error.message.includes('Google Cloud Storage')) {
+            errorMessage = 'Cloud storage is not configured properly. Please use files under 32MB or contact support.';
+        }
+        
+        uploadStatus.textContent = 'Upload failed: ' + errorMessage;
         
         // Reset button
         uploadBtn.disabled = false;
@@ -919,6 +936,13 @@ async function handleUploadSubmit(event) {
         setTimeout(() => {
             progressDiv.style.display = 'none';
         }, 3000);
+        
+        // Show alternative upload option for large files
+        if (selectedFile && selectedFile.size > 32 * 1024 * 1024) {
+            setTimeout(() => {
+                alert('For large files, please use the regular upload form or contact support for assistance.');
+            }, 2000);
+        }
     }
 }
 

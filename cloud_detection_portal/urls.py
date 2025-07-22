@@ -18,23 +18,26 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.static import serve
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
+# Health check endpoint for load balancers and monitoring
+@csrf_exempt
+def health_check(request):
+    """Simple health check endpoint for Compute Engine"""
+    return JsonResponse({
+        'status': 'healthy',
+        'environment': settings.ENVIRONMENT,
+        'debug': settings.DEBUG
+    })
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('cloud_detection.urls')),
+    path('health/', health_check, name='health_check'),  # Health check endpoint
 ]
 
-# Serve media files in development and production
-if settings.DEBUG:
+# Serve media files during development and production
+if settings.DEBUG or settings.ENVIRONMENT == 'production':
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-else:
-    # Production: Serve media files through Django views
-    from django.views.static import serve
-    urlpatterns += [
-        path('media/<path:path>', serve, {
-            'document_root': settings.MEDIA_ROOT,
-            'show_indexes': False,
-        }),
-    ]

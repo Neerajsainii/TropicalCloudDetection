@@ -291,6 +291,12 @@
                 }
                 
                 const data = await response.json();
+                
+                // Check if upload_url is available
+                if (!data.upload_url) {
+                    throw new Error(data.message || 'Failed to get upload URL. Please use the regular upload form for files under 32MB.');
+                }
+                
                 const { upload_url, filename, bucket_name } = data;
                 
                 showStatus('📤 Uploading to Google Cloud Storage...', 'success');

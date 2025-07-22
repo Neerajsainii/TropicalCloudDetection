@@ -1,0 +1,148 @@
+name: Deploy to Google Compute Engine
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: tropical-cloud-detection
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        export_default_credentials: true
+        
+    - name: Configure SSH
+      run: |
+        echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > /tmp/ssh_key
+        chmod 600 /tmp/ssh_key
+        
+    - name: Deploy to VM
+      run: |
+        # Create deployment package
+        tar -czf app.tar.gz \
+          --exclude='.git' \
+          --exclude='venv' \
+          --exclude='__pycache__' \
+          --exclude='*.pyc' \
+          --exclude='.env' \
+          --exclude='db.sqlite3' \
+          --exclude='media/*' \
+          --exclude='staticfiles/*' \
+          --exclude='temp_gcs_credentials.json' \
+          .
+        
+        # Upload to VM
+        gcloud compute scp app.tar.gz tropical-cloud-app:/tmp/app.tar.gz \
+          --zone=asia-southeast1-a \
+          --ssh-key-file=/tmp/ssh_key
+        
+        # Deploy on VM
+        gcloud compute ssh tropical-cloud-app \
+          --zone=asia-southeast1-a \
+          --ssh-key-file=/tmp/ssh_key \
+          --command="
+            set -e
+            
+            # Setup directories
+            sudo mkdir -p /opt/tropical-cloud-detection
+            cd /opt/tropical-cloud-detection
+            
+            # Extract new code
+            sudo tar -xzf /tmp/app.tar.gz
+            
+            # Setup environment if first time
+            if [ ! -d venv ]; then
+              sudo apt-get update
+              sudo apt-get install -y python3 python3-pip python3-venv nginx
+              sudo python3 -m venv venv
+            fi
+            
+            # Activate venv and install dependencies
+            source venv/bin/activate
+            sudo venv/bin/pip install -r requirements.txt
+            
+            # Django setup
+            sudo venv/bin/python manage.py migrate
+            sudo venv/bin/python manage.py collectstatic --noinput
+            
+            # Create systemd service (if doesn't exist)
+            if [ ! -f /etc/systemd/system/tropical-cloud-detection.service ]; then
+              sudo tee /etc/systemd/system/tropical-cloud-detection.service > /dev/null <<EOF
+[Unit]
+Description=Tropical Cloud Detection Django App
+After=network.target
+
+[Service]
+Type=exec
+User=root
+WorkingDirectory=/opt/tropical-cloud-detection
+Environment=PATH=/opt/tropical-cloud-detection/venv/bin
+Environment=ENVIRONMENT=production
+Environment=DEBUG=False
+Environment=ALLOWED_HOSTS=localhost,127.0.0.1,35.247.130.75
+ExecStart=/opt/tropical-cloud-detection/venv/bin/gunicorn \\
+    --bind 127.0.0.1:8000 \\
+    --workers 6 \\
+    --timeout 600 \\
+    cloud_detection_portal.wsgi:application
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+              
+              sudo systemctl daemon-reload
+              sudo systemctl enable tropical-cloud-detection
+            fi
+            
+            # Configure nginx (if doesn't exist)
+            if [ ! -f /etc/nginx/sites-available/tropical-cloud-detection ]; then
+              sudo tee /etc/nginx/sites-available/tropical-cloud-detection > /dev/null <<EOF
+server {
+    listen 8080;
+    server_name _;
+    client_max_body_size 200M;
+    
+    location /static/ {
+        alias /opt/tropical-cloud-detection/staticfiles/;
+    }
+    
+    location /media/ {
+        alias /opt/tropical-cloud-detection/media/;
+    }
+    
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \\\$host;
+        proxy_set_header X-Real-IP \\\$remote_addr;
+        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+    }
+}
+EOF
+              
+              sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/
+              sudo rm -f /etc/nginx/sites-enabled/default
+              sudo systemctl enable nginx
+            fi
+            
+            # Restart services
+            sudo systemctl restart tropical-cloud-detection
+            sudo systemctl restart nginx
+            
+            echo 'Deployment completed successfully!'
+          "
+        
+    - name: Verify Deployment
+      run: |
+        echo "🎉 Deployment Complete!"
+        echo "🔗 Your app is running at: http://35.247.130.75:8080"
+        echo "📊 Check status: gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command='sudo systemctl status tropical-cloud-detection'" 
