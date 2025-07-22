@@ -163,6 +163,9 @@
             <button class="upload-btn" id="uploadBtn" onclick="window.enhancedUploader.uploadFile()" disabled>
                 🚀 Start Upload
             </button>
+            <button class="upload-btn" onclick="testUploadUrl()" style="margin-left: 10px; background: #e74c3c;">
+                🧪 Test Upload URL
+            </button>
         </div>
     </div>
     <script src="{% static 'js/loading.js' %}"></script>
@@ -287,18 +290,21 @@
                 console.log('🔑 upload_url value:', data.upload_url);
                 console.log('📝 filename value:', data.filename);
                 console.log('🪣 bucket_name value:', data.bucket_name);
+                console.log('📋 upload_method value:', data.upload_method);
+                console.log('🔄 fallback value:', data.fallback);
                 
-                if (!data.upload_url) {
+                // Check for fallback response first
+                if (data.upload_method === 'server_side' || data.fallback === true) {
+                    console.log('🔄 Server returned fallback response, using local upload');
+                    showStatus('🔄 Using fallback upload method...', 'success');
+                    await uploadToServer();
+                    return;
+                }
+                
+                // Check if upload_url is missing or invalid
+                if (!data.upload_url || data.upload_url === 'undefined' || data.upload_url === undefined) {
                     console.log('❌ upload_url is missing or undefined');
                     console.log('📦 Full response data:', data);
-                    
-                    // Check if this is a fallback response
-                    if (data.upload_method === 'server_side' || data.fallback) {
-                        console.log('🔄 Server returned fallback response, using local upload');
-                        showStatus('🔄 Using fallback upload method...', 'success');
-                        await uploadToServer();
-                        return;
-                    }
                     
                     if (data.error) {
                         console.log('❌ Error in response:', data.error);
@@ -315,9 +321,9 @@
                 const { upload_url, filename, bucket_name } = data;
                 console.log('✅ Extracted values:', { upload_url, filename, bucket_name });
                 
-                // Double-check upload_url before proceeding
+                // Final check before proceeding with GCS upload
                 if (!upload_url || upload_url === 'undefined' || upload_url === undefined) {
-                    console.log('❌ upload_url is invalid:', upload_url);
+                    console.log('❌ upload_url is invalid after extraction:', upload_url);
                     console.log('🔄 Falling back to server upload');
                     showStatus('🔄 Using fallback upload method...', 'success');
                     await uploadToServer();
@@ -503,6 +509,39 @@
             document.getElementById('status').style.display = 'none';
             document.getElementById('progressFill').style.width = '0%';
             document.getElementById('progressText').textContent = '0%';
+        }
+        
+        // Test function to debug upload URL
+        async function testUploadUrl() {
+            console.log('🧪 Testing upload URL endpoint...');
+            try {
+                const response = await fetch('/get-upload-url/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                console.log('🧪 Test response status:', response.status);
+                console.log('🧪 Test response headers:', Object.fromEntries(response.headers.entries()));
+                
+                const data = await response.json();
+                console.log('🧪 Test response data:', data);
+                
+                if (data.upload_url) {
+                    console.log('🧪 ✅ upload_url found:', data.upload_url.substring(0, 50) + '...');
+                } else {
+                    console.log('🧪 ❌ upload_url missing');
+                    console.log('🧪 upload_method:', data.upload_method);
+                    console.log('🧪 fallback:', data.fallback);
+                }
+                
+                showStatus(`🧪 Test complete: ${response.status} - ${data.upload_method || 'no method'}`, 'success');
+                
+            } catch (error) {
+                console.log('🧪 ❌ Test failed:', error);
+                showStatus(`🧪 Test failed: ${error.message}`, 'error');
+            }
         }
     </script>
 </body>

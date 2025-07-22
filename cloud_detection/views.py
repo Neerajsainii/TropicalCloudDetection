@@ -728,6 +728,8 @@ def get_upload_url(request):
     logger.info("=== GET_UPLOAD_URL CALLED ===")
     logger.info(f"Request method: {request.method}")
     logger.info(f"Request headers: {dict(request.headers)}")
+    logger.info(f"Request GET params: {dict(request.GET)}")
+    logger.info(f"Request POST params: {dict(request.POST)}")
     
     if not GCS_AVAILABLE:
         logger.error("Google Cloud Storage library not available")
