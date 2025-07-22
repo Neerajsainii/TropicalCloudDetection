@@ -290,10 +290,21 @@
                 
                 if (!data.upload_url) {
                     console.log('❌ upload_url is missing or undefined');
+                    console.log('📦 Full response data:', data);
+                    
+                    // Check if this is a fallback response
+                    if (data.upload_method === 'server_side' || data.fallback) {
+                        console.log('🔄 Server returned fallback response, using local upload');
+                        showStatus('🔄 Using fallback upload method...', 'success');
+                        await uploadToServer();
+                        return;
+                    }
+                    
                     if (data.error) {
                         console.log('❌ Error in response:', data.error);
                         throw new Error(data.error);
                     }
+                    
                     // If no upload_url but no error, try fallback
                     console.log('🔄 No upload_url, trying fallback');
                     showStatus('🔄 Using fallback upload method...', 'success');
@@ -304,11 +315,16 @@
                 const { upload_url, filename, bucket_name } = data;
                 console.log('✅ Extracted values:', { upload_url, filename, bucket_name });
                 
-                if (!upload_url || upload_url === 'undefined') {
+                // Double-check upload_url before proceeding
+                if (!upload_url || upload_url === 'undefined' || upload_url === undefined) {
                     console.log('❌ upload_url is invalid:', upload_url);
-                    throw new Error('Invalid upload URL received from server');
+                    console.log('🔄 Falling back to server upload');
+                    showStatus('🔄 Using fallback upload method...', 'success');
+                    await uploadToServer();
+                    return;
                 }
                 
+                console.log('✅ upload_url is valid, proceeding with GCS upload');
                 showStatus('📤 Uploading to Google Cloud Storage...', 'success');
                 // Step 2: Upload file directly to GCS
                 console.log('🚀 Starting XHR upload to:', upload_url);
@@ -401,13 +417,21 @@
                 xhr.send(selectedFile);
             } catch (error) {
                 console.error('Upload error:', error);
+                console.error('Error message:', error.message);
+                console.error('Error stack:', error.stack);
+                
                 showStatus(`❌ Error: ${error.message}`, 'error');
                 
                 // Fallback: Try direct upload to server
-                if (error.message.includes('upload URL') || error.message.includes('GCS')) {
+                if (error.message.includes('upload URL') || 
+                    error.message.includes('GCS') || 
+                    error.message.includes('413') ||
+                    error.message.includes('undefined')) {
+                    console.log('🔄 Error suggests fallback needed, trying server upload');
                     showStatus('🔄 Trying fallback upload method...', 'success');
                     await uploadToServer();
                 } else {
+                    console.log('❌ Non-fallback error, re-enabling upload button');
                     uploadBtn.disabled = false;
                 }
             }

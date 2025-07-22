@@ -739,15 +739,32 @@ def get_upload_url(request):
         
         # Try to use service account key if available
         service_account_key = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        logger.info(f"GOOGLE_APPLICATION_CREDENTIALS env var: {service_account_key}")
+        
         if service_account_key and os.path.exists(service_account_key):
             logger.info(f"Using service account key: {service_account_key}")
-            storage_client = storage.Client.from_service_account_json(service_account_key)
+            try:
+                storage_client = storage.Client.from_service_account_json(service_account_key)
+                logger.info("✅ Successfully created GCS client with service account")
+            except Exception as sa_error:
+                logger.error(f"Failed to create GCS client with service account: {sa_error}")
+                logger.error(f"Service account error type: {type(sa_error)}")
+                return JsonResponse({
+                    'error': 'Google Cloud Storage service account authentication failed',
+                    'details': 'Please check your service account key and permissions',
+                    'fallback': True
+                }, status=500)
         else:
-            logger.info("Using default credentials")
+            logger.info("No service account key found, using default credentials")
+            logger.info("Available environment variables:", {k: v for k, v in os.environ.items() if 'GOOGLE' in k or 'GCP' in k})
+            
             try:
                 storage_client = storage.Client()
+                logger.info("✅ Successfully created GCS client with default credentials")
             except Exception as auth_error:
                 logger.error(f"Failed to initialize GCS client: {auth_error}")
+                logger.error(f"Auth error type: {type(auth_error)}")
+                logger.error(f"Auth error details: {str(auth_error)}")
                 return JsonResponse({
                     'error': 'Google Cloud Storage authentication failed',
                     'details': 'Please check your GCP credentials and permissions',
@@ -794,11 +811,27 @@ def get_upload_url(request):
             
             logger.info(f"Bucket {bucket_name} exists and is accessible")
             
+            # Test bucket permissions by trying to list blobs
+            try:
+                blobs = list(bucket.list_blobs(max_results=1))
+                logger.info(f"✅ Successfully listed blobs in bucket (found {len(blobs)} blobs)")
+            except Exception as list_error:
+                logger.error(f"Failed to list blobs in bucket: {list_error}")
+                logger.error(f"List error type: {type(list_error)}")
+                return JsonResponse({
+                    'error': f'Bucket access test failed: {str(list_error)}',
+                    'details': 'Bucket exists but may not have proper permissions',
+                    'bucket_name': bucket_name,
+                    'fallback': True
+                }, status=500)
+            
         except Exception as e:
             logger.error(f"Failed to access bucket {bucket_name}: {e}")
+            logger.error(f"Bucket access error type: {type(e)}")
             return JsonResponse({
                 'error': f'Failed to access bucket {bucket_name}: {str(e)}',
-                'bucket_name': bucket_name
+                'bucket_name': bucket_name,
+                'fallback': True
             }, status=500)
         
         # Generate unique filename
