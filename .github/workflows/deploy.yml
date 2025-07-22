@@ -25,116 +25,69 @@ jobs:
         
     - name: Deploy to VM
       run: |
-        # Create deployment package with better exclusions
-        tar -czf app.tar.gz \
-          --exclude='.git' \
-          --exclude='venv' \
-          --exclude='__pycache__' \
-          --exclude='*.pyc' \
-          --exclude='*.pyo' \
-          --exclude='.env*' \
-          --exclude='db.sqlite3*' \
-          --exclude='media' \
-          --exclude='staticfiles' \
-          --exclude='logs' \
-          --exclude='*.log' \
-          --exclude='.DS_Store' \
-          --exclude='Thumbs.db' \
-          --exclude='*.tmp' \
-          --exclude='*.temp' \
-          --exclude='node_modules' \
-          --exclude='key.json' \
-          --exclude='gcp-github-actions*' \
-          --warning=no-file-changed \
-          .
+        # Create deployment package
+        tar -czf app.tar.gz --exclude='.git' --exclude='venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='.env*' --exclude='db.sqlite3*' --exclude='media' --exclude='staticfiles' --exclude='key.json' --exclude='gcp-github-actions*' --warning=no-file-changed .
         
         # Upload package
         gcloud compute scp app.tar.gz tropical-cloud-app:/tmp/app.tar.gz --zone=asia-southeast1-a
         
-        # Deploy using direct commands instead of script file
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="
-          set -e
-          echo 'Starting deployment...'
-          
-          # Setup directories
-          sudo mkdir -p /opt/tropical-cloud-detection
-          cd /opt/tropical-cloud-detection
-          sudo tar -xzf /tmp/app.tar.gz
-          
-          # Install system packages if needed
-          if [ ! -d venv ]; then
-            echo 'Installing system packages...'
-            sudo apt-get update
-            sudo apt-get install -y python3 python3-pip python3-venv nginx build-essential libhdf5-dev libnetcdf-dev pkg-config
-            sudo python3 -m venv venv
-          fi
-          
-          # Install Python dependencies
-          echo 'Installing Python dependencies...'
-          source venv/bin/activate
-          sudo venv/bin/pip install -r requirements.txt
-          sudo venv/bin/python manage.py migrate
-          sudo venv/bin/python manage.py collectstatic --noinput
-          
-          # Create systemd service
-          echo 'Setting up systemd service...'
-          sudo tee /etc/systemd/system/tropical-cloud-detection.service > /dev/null << 'EOF'
-[Unit]
-Description=Tropical Cloud Detection
-After=network.target
-
-[Service]
-Type=exec
-User=root
-WorkingDirectory=/opt/tropical-cloud-detection
-Environment=PATH=/opt/tropical-cloud-detection/venv/bin
-Environment=ENVIRONMENT=production
-Environment=DEBUG=False
-Environment=ALLOWED_HOSTS=localhost,127.0.0.1,35.247.130.75
-ExecStart=/opt/tropical-cloud-detection/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 4 --timeout 600 cloud_detection_portal.wsgi:application
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-          
-          # Create nginx config
-          echo 'Setting up nginx...'
-          sudo tee /etc/nginx/sites-available/tropical-cloud-detection > /dev/null << 'EOF'
-server {
-    listen 8080;
-    server_name _;
-    client_max_body_size 200M;
-    
-    location /static/ {
-        alias /opt/tropical-cloud-detection/staticfiles/;
-    }
-    
-    location /media/ {
-        alias /opt/tropical-cloud-detection/media/;
-    }
-    
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    }
-}
-EOF
-          
-          # Enable and start services
-          echo 'Starting services...'
-          sudo systemctl daemon-reload
-          sudo systemctl enable tropical-cloud-detection
-          sudo systemctl enable nginx
-          sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/
-          sudo rm -f /etc/nginx/sites-enabled/default
-          sudo systemctl restart tropical-cloud-detection
-          sudo systemctl restart nginx
-          
-          echo 'Deployment completed successfully!'
-        "
+        # Setup and install
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo mkdir -p /opt/tropical-cloud-detection"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && sudo tar -xzf /tmp/app.tar.gz"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv nginx build-essential libhdf5-dev libnetcdf-dev pkg-config"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && sudo python3 -m venv venv"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && source venv/bin/activate && sudo venv/bin/pip install -r requirements.txt"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && source venv/bin/activate && sudo venv/bin/python manage.py migrate"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && source venv/bin/activate && sudo venv/bin/python manage.py collectstatic --noinput"
+        
+        # Create service files
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="echo '[Unit]
+        Description=Tropical Cloud Detection
+        After=network.target
+        
+        [Service]
+        Type=exec
+        User=root
+        WorkingDirectory=/opt/tropical-cloud-detection
+        Environment=PATH=/opt/tropical-cloud-detection/venv/bin
+        Environment=ENVIRONMENT=production
+        Environment=DEBUG=False
+        Environment=ALLOWED_HOSTS=localhost,127.0.0.1,35.247.130.75
+        ExecStart=/opt/tropical-cloud-detection/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 4 --timeout 600 cloud_detection_portal.wsgi:application
+        Restart=always
+        
+        [Install]
+        WantedBy=multi-user.target' | sudo tee /etc/systemd/system/tropical-cloud-detection.service"
+        
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="echo 'server {
+            listen 8080;
+            server_name _;
+            client_max_body_size 200M;
+            
+            location /static/ {
+                alias /opt/tropical-cloud-detection/staticfiles/;
+            }
+            
+            location /media/ {
+                alias /opt/tropical-cloud-detection/media/;
+            }
+            
+            location / {
+                proxy_pass http://127.0.0.1:8000;
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$remote_addr;
+                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+            }
+        }' | sudo tee /etc/nginx/sites-available/tropical-cloud-detection"
+        
+        # Start services
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl daemon-reload"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl enable tropical-cloud-detection"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl enable nginx"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo rm -f /etc/nginx/sites-enabled/default"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl restart tropical-cloud-detection"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl restart nginx"
         
     - name: Verify
       run: |
