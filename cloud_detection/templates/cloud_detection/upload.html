@@ -225,19 +225,33 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
         async function uploadFile() {
+            console.log('🚀 uploadFile() called');
+            console.log('📁 Selected file:', selectedFile);
+            
             if (!selectedFile) {
                 showStatus('❌ Please select a file first', 'error');
                 return;
             }
+            
             const uploadBtn = document.getElementById('uploadBtn');
             const progressContainer = document.getElementById('progressContainer');
             const progressFill = document.getElementById('progressFill');
             const progressText = document.getElementById('progressText');
+            
             uploadBtn.disabled = true;
             progressContainer.style.display = 'block';
             showStatus('🔄 Getting upload URL...', 'success');
+            
+            console.log('📤 Starting upload process...');
+            console.log('📊 File details:', {
+                name: selectedFile.name,
+                size: selectedFile.size,
+                type: selectedFile.type
+            });
             try {
                 // Step 1: Get signed URL from server
+                console.log('🔗 Fetching upload URL from /get-upload-url/');
+                
                 const response = await fetch('/get-upload-url/', {
                     method: 'GET',
                     headers: {
@@ -245,12 +259,20 @@
                     }
                 });
                 
+                console.log('📡 Response status:', response.status);
+                console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+                
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    console.log('Error response:', errorData);
+                    console.log('❌ Response not OK, status:', response.status);
+                    const errorData = await response.json().catch((e) => {
+                        console.log('❌ Failed to parse error JSON:', e);
+                        return {};
+                    });
+                    console.log('❌ Error response data:', errorData);
                     
                     // Check if server suggests fallback
                     if (errorData.fallback) {
+                        console.log('🔄 Server suggests fallback, using local upload');
                         showStatus('🔄 GCS not available, using fallback upload...', 'success');
                         await uploadToServer();
                         return;
@@ -259,35 +281,61 @@
                     throw new Error(errorData.error || `Server error: ${response.status}`);
                 }
                 
+                console.log('✅ Response OK, parsing JSON...');
                 const data = await response.json();
-                console.log('Upload URL response:', data);
+                console.log('📦 Full response data:', data);
+                console.log('🔑 upload_url value:', data.upload_url);
+                console.log('📝 filename value:', data.filename);
+                console.log('🪣 bucket_name value:', data.bucket_name);
                 
                 if (!data.upload_url) {
+                    console.log('❌ upload_url is missing or undefined');
                     if (data.error) {
+                        console.log('❌ Error in response:', data.error);
                         throw new Error(data.error);
                     }
                     // If no upload_url but no error, try fallback
+                    console.log('🔄 No upload_url, trying fallback');
                     showStatus('🔄 Using fallback upload method...', 'success');
                     await uploadToServer();
                     return;
                 }
                 
                 const { upload_url, filename, bucket_name } = data;
+                console.log('✅ Extracted values:', { upload_url, filename, bucket_name });
+                
+                if (!upload_url || upload_url === 'undefined') {
+                    console.log('❌ upload_url is invalid:', upload_url);
+                    throw new Error('Invalid upload URL received from server');
+                }
+                
                 showStatus('📤 Uploading to Google Cloud Storage...', 'success');
                 // Step 2: Upload file directly to GCS
+                console.log('🚀 Starting XHR upload to:', upload_url);
+                console.log('📁 File being uploaded:', selectedFile.name);
+                
                 const xhr = new XMLHttpRequest();
+                
                 xhr.upload.addEventListener('progress', (event) => {
                     if (event.lengthComputable) {
                         const percentComplete = (event.loaded / event.total) * 100;
+                        console.log('📊 Upload progress:', percentComplete.toFixed(1) + '%');
                         progressFill.style.width = percentComplete + '%';
                         progressText.textContent = percentComplete.toFixed(1) + '%';
                     }
                 });
+                
                 xhr.addEventListener('load', async () => {
+                    console.log('📡 XHR load event, status:', xhr.status);
+                    console.log('📡 XHR response:', xhr.responseText);
+                    
                     if (xhr.status === 200) {
+                        console.log('✅ XHR upload successful');
                         showStatus('✅ File uploaded to Google Cloud Storage!', 'success');
+                        
                         // Step 3: Notify backend about the uploaded file
                         try {
+                            console.log('📝 Notifying backend about uploaded file...');
                             const formData = new FormData();
                             formData.append('file_name', selectedFile.name);
                             formData.append('file_path', filename);
@@ -295,33 +343,61 @@
                             formData.append('upload_source', 'gcs');
                             formData.append('gcs_bucket', bucket_name);
                             formData.append('gcs_path', filename);
+                            
+                            console.log('📤 Sending to /upload/ with data:', {
+                                file_name: selectedFile.name,
+                                file_path: filename,
+                                file_size: selectedFile.size,
+                                upload_source: 'gcs',
+                                gcs_bucket: bucket_name,
+                                gcs_path: filename
+                            });
+                            
                             const dbResponse = await fetch('/upload/', {
                                 method: 'POST',
                                 body: formData
                             });
+                            
+                            console.log('📡 Backend response status:', dbResponse.status);
+                            
                             if (dbResponse.ok) {
                                 const result = await dbResponse.json();
+                                console.log('✅ Backend notification successful:', result);
                                 showStatus('🎉 Upload complete! Processing started.', 'success');
-                                console.log('Upload result:', result);
                                 // Reset form
                                 setTimeout(() => {
                                     resetForm();
                                 }, 3000);
                             } else {
+                                const errorText = await dbResponse.text();
+                                console.log('❌ Backend notification failed:', errorText);
                                 throw new Error('Failed to create database record');
                             }
                         } catch (error) {
+                            console.log('❌ Error in backend notification:', error);
                             showStatus(`❌ Error: ${error.message}`, 'error');
                         }
                     } else {
+                        console.log('❌ XHR upload failed with status:', xhr.status);
+                        console.log('❌ XHR response:', xhr.responseText);
                         showStatus(`❌ Upload failed with status: ${xhr.status}`, 'error');
                     }
                 });
-                xhr.addEventListener('error', () => {
+                
+                xhr.addEventListener('error', (error) => {
+                    console.log('❌ XHR error event:', error);
                     showStatus('❌ Upload failed', 'error');
                 });
+                
+                xhr.addEventListener('abort', () => {
+                    console.log('❌ XHR upload aborted');
+                    showStatus('❌ Upload aborted', 'error');
+                });
+                
+                console.log('🔗 Opening XHR connection to:', upload_url);
                 xhr.open('PUT', upload_url);
                 xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+                console.log('📤 Sending file...');
                 xhr.send(selectedFile);
             } catch (error) {
                 console.error('Upload error:', error);
@@ -338,28 +414,52 @@
         }
         
         async function uploadToServer() {
+            console.log('🔄 uploadToServer() called');
+            console.log('📁 File to upload:', selectedFile.name);
+            
             try {
                 const formData = new FormData();
                 formData.append('file', selectedFile);
                 formData.append('upload_source', 'local');
                 
+                console.log('📤 FormData created with:', {
+                    file: selectedFile.name,
+                    upload_source: 'local'
+                });
+                
+                console.log('🔗 Sending POST request to /upload/');
                 const response = await fetch('/upload/', {
                     method: 'POST',
                     body: formData
                 });
                 
+                console.log('📡 Server response status:', response.status);
+                console.log('📡 Server response headers:', Object.fromEntries(response.headers.entries()));
+                
                 if (response.ok) {
                     const result = await response.json();
+                    console.log('✅ Server upload successful:', result);
                     showStatus('🎉 Upload complete! Processing started.', 'success');
-                    console.log('Upload result:', result);
                     setTimeout(() => {
                         resetForm();
                     }, 3000);
                 } else {
-                    const errorData = await response.json().catch(() => ({}));
+                    console.log('❌ Server upload failed');
+                    const errorText = await response.text();
+                    console.log('❌ Error response text:', errorText);
+                    
+                    let errorData = {};
+                    try {
+                        errorData = JSON.parse(errorText);
+                    } catch (e) {
+                        console.log('❌ Failed to parse error JSON:', e);
+                    }
+                    
+                    console.log('❌ Parsed error data:', errorData);
                     throw new Error(errorData.error || 'Upload failed');
                 }
             } catch (error) {
+                console.log('❌ uploadToServer error:', error);
                 showStatus(`❌ Fallback upload failed: ${error.message}`, 'error');
                 uploadBtn.disabled = false;
             }
