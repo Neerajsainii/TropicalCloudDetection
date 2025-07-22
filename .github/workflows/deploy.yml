@@ -13,12 +13,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
       
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
     - name: Setup Google Cloud CLI
       uses: google-github-actions/setup-gcloud@v1
       with:
         project_id: tropical-cloud-detection
-        service_account_key: ${{ secrets.GCP_SA_KEY }}
-        export_default_credentials: true
         
     - name: Deploy to VM
       run: |
@@ -49,7 +52,7 @@ jobs:
             # Setup if first time
             if [ ! -d venv ]; then
               sudo apt-get update
-              sudo apt-get install -y python3 python3-pip python3-venv nginx
+              sudo apt-get install -y python3 python3-pip python3-venv nginx build-essential libhdf5-dev libnetcdf-dev pkg-config
               sudo python3 -m venv venv
             fi
             
@@ -59,11 +62,65 @@ jobs:
             sudo venv/bin/python manage.py migrate
             sudo venv/bin/python manage.py collectstatic --noinput
             
-            # Start services
-            sudo systemctl restart tropical-cloud-detection 2>/dev/null || echo 'Service will be created'
-            sudo systemctl restart nginx 2>/dev/null || echo 'Nginx will be configured'
+            # Create systemd service if needed
+            if [ ! -f /etc/systemd/system/tropical-cloud-detection.service ]; then
+              sudo tee /etc/systemd/system/tropical-cloud-detection.service > /dev/null <<EOF
+[Unit]
+Description=Tropical Cloud Detection Django App
+After=network.target
+
+[Service]
+Type=exec
+User=root
+WorkingDirectory=/opt/tropical-cloud-detection
+Environment=PATH=/opt/tropical-cloud-detection/venv/bin
+Environment=ENVIRONMENT=production
+Environment=DEBUG=False
+Environment=ALLOWED_HOSTS=localhost,127.0.0.1,35.247.130.75
+ExecStart=/opt/tropical-cloud-detection/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 6 --timeout 600 cloud_detection_portal.wsgi:application
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+              sudo systemctl daemon-reload
+              sudo systemctl enable tropical-cloud-detection
+            fi
             
-            echo 'Deployment completed!'
+            # Setup nginx if needed
+            if [ ! -f /etc/nginx/sites-available/tropical-cloud-detection ]; then
+              sudo tee /etc/nginx/sites-available/tropical-cloud-detection > /dev/null <<EOF
+server {
+    listen 8080;
+    server_name _;
+    client_max_body_size 200M;
+    
+    location /static/ {
+        alias /opt/tropical-cloud-detection/staticfiles/;
+    }
+    
+    location /media/ {
+        alias /opt/tropical-cloud-detection/media/;
+    }
+    
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \\\$host;
+        proxy_set_header X-Real-IP \\\$remote_addr;
+        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+    }
+}
+EOF
+              sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/
+              sudo rm -f /etc/nginx/sites-enabled/default
+              sudo systemctl enable nginx
+            fi
+            
+            # Start services
+            sudo systemctl restart tropical-cloud-detection
+            sudo systemctl restart nginx
+            
+            echo 'Deployment completed successfully!'
           "
         
     - name: Verify
