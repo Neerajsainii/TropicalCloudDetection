@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tropical Cloud Detection - Upload</title>
+    <link rel="stylesheet" href="{% static 'css/loading.css' %}">
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -151,7 +152,7 @@
             <p><strong>Type:</strong> <span id="fileType"></span></p>
         </div>
         <div class="progress-container" id="progressContainer">
-            <h3>📤 Uploading to Google Cloud Storage...</h3>
+            <h3 id="stepMessage">📤 Uploading to Google Cloud Storage...</h3>
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
@@ -159,11 +160,12 @@
         </div>
         <div class="status" id="status"></div>
         <div style="text-align: center; margin-top: 30px;">
-            <button class="upload-btn" id="uploadBtn" onclick="uploadFile()" disabled>
+            <button class="upload-btn" id="uploadBtn" onclick="window.enhancedUploader.uploadFile()" disabled>
                 🚀 Start Upload
             </button>
         </div>
     </div>
+    <script src="{% static 'js/loading.js' %}"></script>
     <script>
         let selectedFile = null;
         const maxFileSize = 100 * 1024 * 1024; // 100MB

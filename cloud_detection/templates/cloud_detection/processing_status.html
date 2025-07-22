@@ -1,4 +1,5 @@
 {% extends 'cloud_detection/base.html' %}
+{% load static %}
 
 {% block title %}Processing Status - TropicalSat Cloud Detection{% endblock %}
 
@@ -63,7 +64,8 @@
                         {% else %}bg-secondary
                         {% endif %}" 
                         role="progressbar" 
-                        style="width: {{ progress_percentage }}%">
+                        style="width: {{ progress_percentage }}%"
+                        data-progress="{{ progress_percentage }}">
                     </div>
                 </div>
                 
@@ -156,5 +158,28 @@
 </script>
 {% endif %}
 
+<!-- Enhanced Processing Animations -->
+<script src="{% static 'js/loading.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animate progress bar on load
+        const progressBar = document.querySelector('.progress-bar');
+        if (progressBar) {
+            const progress = progressBar.getAttribute('data-progress');
+            if (progress) {
+                const loadingManager = new LoadingManager();
+                loadingManager.animateProgress(parseFloat(progress), 1000);
+            }
+        }
+        
+        // Add processing step animations
+        const processingSteps = document.querySelectorAll('.processing-step');
+        processingSteps.forEach((step, index) => {
+            setTimeout(() => {
+                step.classList.add('active');
+            }, index * 200);
+        });
+    });
+</script>
 
 {% endblock %} 
