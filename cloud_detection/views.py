@@ -185,78 +185,6 @@ def upload_file(request):
                 satellite_data.save()
                 return JsonResponse({'error': f'Failed to start processing: {e}'}, status=500)
         
-        elif upload_source == 'local':
-            # Handle fallback local upload
-            if 'file' not in request.FILES:
-                return JsonResponse({'error': 'No file provided'}, status=400)
-            
-            uploaded_file = request.FILES['file']
-            file_size = uploaded_file.size
-            
-            # Check if file is too large for direct upload
-            if file_size > 32 * 1024 * 1024:  # 32MB
-                return JsonResponse({
-                    'error': 'File too large for direct upload. Please use the large file upload interface.',
-                    'max_size': '32MB'
-                }, status=413)
-            
-            logger.info(f"Local fallback upload: {uploaded_file.name}, Size: {file_size} bytes")
-            
-            # Create SatelliteData record for local file
-            satellite_data = SatelliteData.objects.create(
-                file_name=uploaded_file.name,
-                file_path=uploaded_file,
-                file_size=file_size,
-                status='pending',
-                upload_source='local'
-            )
-            
-            logger.info(f"Local file record created: {satellite_data.file_name}")
-            
-            # Start processing in background
-            try:
-                import threading
-                
-                def process_in_background():
-                    try:
-                        from .processing import CloudDetectionProcessor
-                        processor = CloudDetectionProcessor(satellite_data)
-                        processor.process_satellite_data()
-                        logger.info(f"Processing completed for local file: {satellite_data.file_name}")
-                        
-                    except Exception as e:
-                        logger.error(f"Processing failed for local file {satellite_data.file_name}: {e}")
-                        satellite_data.refresh_from_db()
-                        satellite_data.status = 'failed'
-                        satellite_data.error_message = str(e)
-                        satellite_data.save()
-                        ProcessingLog.objects.create(
-                            satellite_data=satellite_data,
-                            level='error',
-                            message=f'Processing failed: {e}'
-                        )
-                
-                # Start processing in background thread
-                processing_thread = threading.Thread(target=process_in_background)
-                processing_thread.daemon = True
-                processing_thread.start()
-                
-                logger.info(f"Processing started in background for local file: {satellite_data.file_name}")
-                
-                return JsonResponse({
-                    'success': True,
-                    'message': 'File uploaded and processing started',
-                    'data_id': satellite_data.id,
-                    'redirect_url': reverse('cloud_detection:processing_status', args=[satellite_data.id])
-                })
-                
-            except Exception as e:
-                logger.error(f"Failed to start processing for local file: {e}")
-                satellite_data.status = 'failed'
-                satellite_data.error_message = str(e)
-                satellite_data.save()
-                return JsonResponse({'error': f'Failed to start processing: {e}'}, status=500)
-        
         else:
             # Handle direct file upload (for small files < 32MB)
             if 'file_path' in request.FILES:
@@ -677,45 +605,28 @@ def api_analytics_details(request, data_id):
 @require_http_methods(["GET"])
 def health_check(request):
     """Health check endpoint for monitoring"""
-    logger.info("=== HEALTH CHECK CALLED ===")
     try:
         # Check database connection
         from django.db import connection
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
-        logger.info("✅ Database connection successful")
         
         # Check if we can access models
         from .models import SatelliteData
         count = SatelliteData.objects.count()
-        logger.info(f"✅ Database has {count} files")
         
-        # Check if we can access settings
-        bucket_name = getattr(settings, 'GCS_BUCKET_NAME', 'NOT_SET')
-        logger.info(f"✅ GCS_BUCKET_NAME: {bucket_name}")
-        
-        # Test GCS availability
-        gcs_status = "available" if GCS_AVAILABLE else "not_available"
-        logger.info(f"✅ GCS status: {gcs_status}")
-        
-        response_data = {
+        return JsonResponse({
             'status': 'healthy',
             'database': 'connected',
             'files_count': count,
-            'gcs_bucket': bucket_name,
-            'gcs_available': GCS_AVAILABLE,
             'timestamp': timezone.now().isoformat()
-        }
-        logger.info(f"✅ Health check response: {response_data}")
-        return JsonResponse(response_data)
+        })
         
     except Exception as e:
-        logger.error(f"❌ Health check failed: {e}")
-        logger.error(f"❌ Error type: {type(e)}")
+        logger.error(f"Health check failed: {str(e)}")
         return JsonResponse({
             'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': timezone.now().isoformat()
+            'error': str(e)
         }, status=500)
 
 def upload_large_files(request):
@@ -725,12 +636,6 @@ def upload_large_files(request):
 @csrf_exempt
 def get_upload_url(request):
     """Generate signed URL for direct upload to Google Cloud Storage"""
-    logger.info("=== GET_UPLOAD_URL CALLED ===")
-    logger.info(f"Request method: {request.method}")
-    logger.info(f"Request headers: {dict(request.headers)}")
-    logger.info(f"Request GET params: {dict(request.GET)}")
-    logger.info(f"Request POST params: {dict(request.POST)}")
-    
     if not GCS_AVAILABLE:
         logger.error("Google Cloud Storage library not available")
         return JsonResponse({'error': 'Google Cloud Storage not available'}, status=500)
@@ -741,99 +646,47 @@ def get_upload_url(request):
         
         # Try to use service account key if available
         service_account_key = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-        logger.info(f"GOOGLE_APPLICATION_CREDENTIALS env var: {service_account_key}")
-        
         if service_account_key and os.path.exists(service_account_key):
             logger.info(f"Using service account key: {service_account_key}")
-            try:
-                storage_client = storage.Client.from_service_account_json(service_account_key)
-                logger.info("✅ Successfully created GCS client with service account")
-            except Exception as sa_error:
-                logger.error(f"Failed to create GCS client with service account: {sa_error}")
-                logger.error(f"Service account error type: {type(sa_error)}")
-                return JsonResponse({
-                    'error': 'Google Cloud Storage service account authentication failed',
-                    'details': 'Please check your service account key and permissions',
-                    'fallback': True
-                }, status=500)
+            storage_client = storage.Client.from_service_account_json(service_account_key)
         else:
-            logger.info("No service account key found, using default credentials")
-            logger.info("Available environment variables:", {k: v for k, v in os.environ.items() if 'GOOGLE' in k or 'GCP' in k})
-            
-            try:
-                storage_client = storage.Client()
-                logger.info("✅ Successfully created GCS client with default credentials")
-            except Exception as auth_error:
-                logger.error(f"Failed to initialize GCS client: {auth_error}")
-                logger.error(f"Auth error type: {type(auth_error)}")
-                logger.error(f"Auth error details: {str(auth_error)}")
-                return JsonResponse({
-                    'error': 'Google Cloud Storage authentication failed',
-                    'details': 'Please check your GCP credentials and permissions',
-                    'fallback': True
-                }, status=500)
+            logger.info("Using default credentials")
+            storage_client = storage.Client()
         
         bucket_name = settings.GCS_BUCKET_NAME
         logger.info(f"Using bucket: {bucket_name}")
-        logger.info(f"GCS_BUCKET_NAME from settings: {getattr(settings, 'GCS_BUCKET_NAME', 'NOT_SET')}")
         
         # Check if bucket exists
         try:
             bucket = storage_client.bucket(bucket_name)
-            logger.info(f"Created bucket object for: {bucket_name}")
-            logger.info(f"Bucket object: {bucket}")
+            logger.info(f"Checking if bucket {bucket_name} exists...")
             
             # Test bucket access with a simple operation
             try:
-                logger.info("Testing GCS authentication...")
                 # This will trigger authentication and permission checks
-                buckets_list = list(storage_client.list_buckets(max_results=1))
-                logger.info(f"Successfully authenticated with Google Cloud Storage. Found {len(buckets_list)} buckets")
+                list(storage_client.list_buckets(max_results=1))
+                logger.info("Successfully authenticated with Google Cloud Storage")
             except Exception as auth_error:
                 logger.error(f"Authentication failed: {auth_error}")
-                logger.error(f"Auth error type: {type(auth_error)}")
-                logger.error(f"Auth error details: {str(auth_error)}")
                 return JsonResponse({
                     'error': f'Authentication failed: {str(auth_error)}',
-                    'details': 'Check if service account has proper IAM permissions',
-                    'fallback': True
+                    'details': 'Check if service account has proper IAM permissions'
                 }, status=500)
             
-            logger.info(f"Checking if bucket {bucket_name} exists...")
-            bucket_exists = bucket.exists()
-            logger.info(f"Bucket {bucket_name} exists: {bucket_exists}")
-            
-            if not bucket_exists:
+            if not bucket.exists():
                 logger.error(f"Bucket {bucket_name} does not exist")
                 return JsonResponse({
                     'error': f'Bucket {bucket_name} does not exist. Please create it first.',
-                    'bucket_name': bucket_name,
-                    'fallback': True
+                    'bucket_name': bucket_name
                 }, status=500)
             
             logger.info(f"Bucket {bucket_name} exists and is accessible")
             
-            # Test bucket permissions by trying to list blobs
-            try:
-                blobs = list(bucket.list_blobs(max_results=1))
-                logger.info(f"✅ Successfully listed blobs in bucket (found {len(blobs)} blobs)")
-            except Exception as list_error:
-                logger.error(f"Failed to list blobs in bucket: {list_error}")
-                logger.error(f"List error type: {type(list_error)}")
-                return JsonResponse({
-                    'error': f'Bucket access test failed: {str(list_error)}',
-                    'details': 'Bucket exists but may not have proper permissions',
-                    'bucket_name': bucket_name,
-                    'fallback': True
-                }, status=500)
-            
         except Exception as e:
             logger.error(f"Failed to access bucket {bucket_name}: {e}")
-            logger.error(f"Bucket access error type: {type(e)}")
             return JsonResponse({
                 'error': f'Failed to access bucket {bucket_name}: {str(e)}',
-                'bucket_name': bucket_name,
-                'fallback': True
+                'bucket_name': bucket_name
             }, status=500)
         
         # Generate unique filename
@@ -843,66 +696,46 @@ def get_upload_url(request):
         
         # Create blob and generate signed URL
         blob = bucket.blob(filename)
-        logger.info(f"Created blob object: {blob}")
-        logger.info(f"Blob name: {blob.name}")
-        logger.info(f"Blob bucket: {blob.bucket}")
         
         logger.info("Generating signed URL...")
         try:
             # Generate signed URL for upload (expires in 1 hour)
-            logger.info("Calling blob.generate_signed_url...")
             url = blob.generate_signed_url(
                 version="v4",
                 expiration=timedelta(hours=1),
                 method="PUT",
                 content_type="application/octet-stream"
             )
-            logger.info(f"Successfully generated signed URL: {url}")
-            logger.info(f"URL length: {len(url)}")
-            logger.info(f"URL starts with: {url[:50]}...")
+            logger.info("Successfully generated signed URL")
         except Exception as sign_error:
             logger.error(f"Failed to generate signed URL: {sign_error}")
-            logger.error(f"Sign error type: {type(sign_error)}")
-            logger.error(f"Sign error details: {str(sign_error)}")
             # Fallback: use a different approach - return upload info for server-side upload
             logger.info("Falling back to server-side upload approach")
             url = None
             logger.warning("Signed URL generation failed - will use server-side upload")
         
         if url:
-            logger.info("Returning successful response with signed URL")
-            response_data = {
+            return JsonResponse({
                 'upload_url': url,
                 'filename': filename,
                 'bucket_name': bucket_name,
                 'upload_method': 'signed_url'
-            }
-            logger.info(f"Response data: {response_data}")
-            return JsonResponse(response_data)
+            })
         else:
             # Return info for server-side upload
-            logger.info("Returning fallback response for server-side upload")
-            response_data = {
+            return JsonResponse({
                 'filename': filename,
                 'bucket_name': bucket_name,
                 'upload_method': 'server_side',
-                'message': 'Signed URL generation failed. Please use the regular upload form for files under 32MB.',
-                'fallback': True
-            }
-            logger.info(f"Fallback response data: {response_data}")
-            return JsonResponse(response_data)
+                'message': 'Signed URL generation failed. Please use the regular upload form for files under 32MB.'
+            })
         
     except Exception as e:
         logger.error(f"Error generating upload URL: {e}")
-        logger.error(f"Error type: {type(e)}")
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
-        
-        response_data = {
+        return JsonResponse({
             'error': f'Failed to generate upload URL: {str(e)}',
             'details': 'Check if Google Cloud Storage is properly configured',
-            'type': type(e).__name__,
-            'fallback': True
-        }
-        logger.error(f"Returning error response: {response_data}")
-        return JsonResponse(response_data, status=500)
+            'type': type(e).__name__
+        }, status=500)
