@@ -23,73 +23,145 @@ jobs:
       with:
         project_id: tropical-cloud-detection
         
-    - name: Deploy to VM
+    - name: Debug - Check VM Status
       run: |
-        # Create deployment package
-        tar -czf app.tar.gz --exclude='.git' --exclude='venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='.env*' --exclude='db.sqlite3*' --exclude='media' --exclude='staticfiles' --exclude='key.json' --exclude='gcp-github-actions*' --warning=no-file-changed .
+        echo "🔍 Checking VM status..."
+        gcloud compute instances list --filter="name=tropical-cloud-app"
+        echo "📊 VM details:"
+        gcloud compute instances describe tropical-cloud-app --zone=asia-southeast1-a --format="table(name,status,machineType,networkInterfaces[0].accessConfigs[0].natIP)"
         
-        # Upload package
+    - name: Debug - Check Firewall Rules
+      run: |
+        echo "🔍 Checking firewall rules..."
+        gcloud compute firewall-rules list --filter="name~allow-http"
+        
+    - name: Create deployment package
+      run: |
+        echo "📦 Creating deployment package..."
+        set -x
+        tar -czf app.tar.gz --exclude='.git' --exclude='venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='.env*' --exclude='db.sqlite3*' --exclude='media' --exclude='staticfiles' --exclude='key.json' --exclude='gcp-github-actions*' .
+        ls -la app.tar.gz
+        echo "✅ Package created successfully"
+        
+    - name: Upload package to VM
+      run: |
+        echo "📤 Uploading to VM..."
+        set -x
         gcloud compute scp app.tar.gz tropical-cloud-app:/tmp/app.tar.gz --zone=asia-southeast1-a
+        echo "✅ Upload completed"
         
-        # Setup and install
+    - name: Setup VM directory
+      run: |
+        echo "🔧 Setting up VM directory..."
+        set -x
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo mkdir -p /opt/tropical-cloud-detection"
+        echo "✅ Directory created"
+        
+    - name: Extract files
+      run: |
+        echo "📂 Extracting files..."
+        set -x
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && sudo tar -xzf /tmp/app.tar.gz"
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv nginx build-essential libhdf5-dev libnetcdf-dev pkg-config"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="ls -la /opt/tropical-cloud-detection"
+        echo "✅ Files extracted"
+        
+    - name: Install system dependencies
+      run: |
+        echo "🐍 Installing system dependencies..."
+        set -x
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo apt-get update"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo apt-get install -y python3 python3-pip python3-venv nginx build-essential libhdf5-dev libnetcdf-dev pkg-config"
+        echo "✅ System dependencies installed"
+        
+    - name: Create virtual environment
+      run: |
+        echo "🔧 Creating virtual environment..."
+        set -x
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && sudo python3 -m venv venv"
+        echo "✅ Virtual environment created"
+        
+    - name: Install Python packages
+      run: |
+        echo "📦 Installing Python packages..."
+        set -x
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && source venv/bin/activate && sudo venv/bin/pip install -r requirements.txt"
+        echo "✅ Python packages installed"
+        
+    - name: Run database migrations
+      run: |
+        echo "🗄️ Running database migrations..."
+        set -x
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && source venv/bin/activate && sudo venv/bin/python manage.py migrate"
+        echo "✅ Migrations completed"
+        
+    - name: Collect static files
+      run: |
+        echo "📁 Collecting static files..."
+        set -x
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && source venv/bin/activate && sudo venv/bin/python manage.py collectstatic --noinput"
+        echo "✅ Static files collected"
         
-        # Create service files
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="echo '[Unit]
-        Description=Tropical Cloud Detection
-        After=network.target
+    - name: Stop existing processes
+      run: |
+        echo "🛑 Stopping existing processes..."
+        set -x
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo pkill -f gunicorn || echo 'No existing gunicorn processes found'"
+        echo "✅ Processes stopped"
         
-        [Service]
-        Type=exec
-        User=root
-        WorkingDirectory=/opt/tropical-cloud-detection
-        Environment=PATH=/opt/tropical-cloud-detection/venv/bin
-        Environment=ENVIRONMENT=production
-        Environment=DEBUG=False
-        Environment=ALLOWED_HOSTS=localhost,127.0.0.1,35.247.130.75
-        ExecStart=/opt/tropical-cloud-detection/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 4 --timeout 600 cloud_detection_portal.wsgi:application
-        Restart=always
+    - name: Start Gunicorn
+      run: |
+        echo "🚀 Starting Gunicorn..."
+        set -x
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="cd /opt/tropical-cloud-detection && source venv/bin/activate && nohup sudo venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 4 --timeout 600 cloud_detection_portal.wsgi:application > gunicorn.log 2>&1 &"
+        echo "⏳ Waiting for Gunicorn to start..."
+        sleep 10
+        echo "🔍 Checking Gunicorn status:"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="ps aux | grep gunicorn"
+        echo "📊 Gunicorn logs:"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="tail -n 20 /opt/tropical-cloud-detection/gunicorn.log"
+        echo "✅ Gunicorn started"
         
-        [Install]
-        WantedBy=multi-user.target' | sudo tee /etc/systemd/system/tropical-cloud-detection.service"
-        
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="echo 'server {
-            listen 8080;
-            server_name _;
-            client_max_body_size 200M;
-            
-            location /static/ {
-                alias /opt/tropical-cloud-detection/staticfiles/;
-            }
-            
-            location /media/ {
-                alias /opt/tropical-cloud-detection/media/;
-            }
-            
-            location / {
-                proxy_pass http://127.0.0.1:8000;
-                proxy_set_header Host \$host;
-                proxy_set_header X-Real-IP \$remote_addr;
-                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            }
-        }' | sudo tee /etc/nginx/sites-available/tropical-cloud-detection"
-        
-        # Start services
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl daemon-reload"
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl enable tropical-cloud-detection"
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl enable nginx"
+    - name: Setup Nginx
+      run: |
+        echo "🌐 Setting up Nginx..."
+        set -x
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="echo 'server { listen 8080; server_name _; client_max_body_size 200M; location /static/ { alias /opt/tropical-cloud-detection/staticfiles/; } location /media/ { alias /opt/tropical-cloud-detection/media/; } location / { proxy_pass http://127.0.0.1:8000; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; } }' | sudo tee /etc/nginx/sites-available/tropical-cloud-detection"
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/"
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo rm -f /etc/nginx/sites-enabled/default"
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl restart tropical-cloud-detection"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo nginx -t"
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl restart nginx"
+        echo "✅ Nginx configured"
         
-    - name: Verify deployment
+    - name: Debug - Check services
       run: |
-        sleep 10
-        curl -f http://35.247.130.75:8080/ || exit 1
+        echo "🔍 Checking service status..."
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl status nginx --no-pager"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="ps aux | grep gunicorn"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="netstat -tlnp | grep :8000"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="netstat -tlnp | grep :8080"
+        
+    - name: Test application
+      run: |
+        echo "🔍 Testing application..."
+        set -x
+        EXTERNAL_IP=$(gcloud compute instances describe tropical-cloud-app --zone=asia-southeast1-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
+        echo "🌐 Testing URL: http://$EXTERNAL_IP:8080/"
+        
+        # Test with curl and capture detailed output
+        curl -v -f http://$EXTERNAL_IP:8080/ || {
+          echo "❌ Application test failed"
+          echo "🔍 Checking Gunicorn logs:"
+          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="tail -n 50 /opt/tropical-cloud-detection/gunicorn.log"
+          echo "🔍 Checking Nginx logs:"
+          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo tail -n 50 /var/log/nginx/error.log"
+          exit 1
+        }
+        
+        echo "✅ Application is responding!"
+        
+    - name: Final status
+      run: |
+        echo "🎉 Deployment completed successfully!"
+        EXTERNAL_IP=$(gcloud compute instances describe tropical-cloud-app --zone=asia-southeast1-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
+        echo "🌐 Application URL: http://$EXTERNAL_IP:8080"
+        echo "📊 Logs: ssh tropical-cloud-app 'tail -f /opt/tropical-cloud-detection/gunicorn.log'"
