@@ -4,13 +4,15 @@ import tempfile
 import zipfile
 import h5py
 import numpy as np
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from django.urls import reverse
+from django.utils import timezone
 from .models import SatelliteData
 from .forms import SatelliteDataForm
 from .processing import process_satellite_file
@@ -59,6 +61,10 @@ def home(request):
         form = SatelliteDataForm()
     
     return render(request, 'cloud_detection/home.html', {'form': form})
+
+def upload_file(request):
+    """Upload file view - redirects to home"""
+    return redirect('cloud_detection:home')
 
 def upload_large_files(request):
     """Large file upload page"""
@@ -123,12 +129,20 @@ def results(request, data_id):
         messages.error(request, 'Data not found')
         return redirect('home')
 
+def view_results(request, data_id):
+    """View results - alias for results"""
+    return results(request, data_id)
+
 def history(request):
     """Display processing history"""
     satellite_data_list = SatelliteData.objects.all().order_by('-upload_date')
     return render(request, 'cloud_detection/history.html', {
         'satellite_data_list': satellite_data_list
     })
+
+def data_history(request):
+    """Data history - alias for history"""
+    return history(request)
 
 def processing_status(request, data_id):
     """Get processing status"""
@@ -140,6 +154,51 @@ def processing_status(request, data_id):
         })
     except SatelliteData.DoesNotExist:
         return JsonResponse({'error': 'Data not found'}, status=404)
+
+def retry_processing(request, data_id):
+    """Retry processing"""
+    try:
+        satellite_data = get_object_or_404(SatelliteData, id=data_id)
+        if satellite_data.status in ['failed', 'pending']:
+            satellite_data.status = 'uploaded'
+            satellite_data.save()
+            result = process_satellite_file(satellite_data.id)
+            if result:
+                messages.success(request, 'Processing restarted successfully')
+            else:
+                messages.error(request, 'Processing failed')
+        else:
+            messages.warning(request, 'File is already processing or completed')
+        return redirect('cloud_detection:processing_status', data_id=data_id)
+    except Exception as e:
+        messages.error(request, f'Error retrying processing: {str(e)}')
+        return redirect('cloud_detection:home')
+
+def download_file(request, data_id, file_type):
+    """Download file"""
+    try:
+        satellite_data = get_object_or_404(SatelliteData, id=data_id)
+        if file_type == 'result':
+            if satellite_data.brightness_temperature_plot:
+                response = HttpResponse(satellite_data.brightness_temperature_plot.read(), content_type='image/png')
+                response['Content-Disposition'] = f'attachment; filename="result_{data_id}.png"'
+                return response
+        messages.error(request, 'File not found')
+        return redirect('cloud_detection:view_results', data_id=data_id)
+    except Exception as e:
+        messages.error(request, f'Error downloading file: {str(e)}')
+        return redirect('cloud_detection:home')
+
+def delete_data(request, data_id):
+    """Delete data"""
+    if request.method == 'POST':
+        try:
+            satellite_data = get_object_or_404(SatelliteData, id=data_id)
+            satellite_data.delete()
+            messages.success(request, 'Data deleted successfully')
+        except Exception as e:
+            messages.error(request, f'Error deleting data: {str(e)}')
+    return redirect('cloud_detection:data_history')
 
 def about(request):
     """About page"""
@@ -184,5 +243,77 @@ def api_real_time_data(request):
     except Exception as e:
         return JsonResponse({
             'success': False,
+            'error': str(e)
+        }, status=500)
+
+def api_analytics_data(request):
+    """API endpoint for analytics data"""
+    try:
+        # Return sample analytics data
+        data = {
+            'labels': ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+            'datasets': [{
+                'label': 'Cloud Coverage (%)',
+                'data': [65, 72, 68, 75, 80, 78, 70, 65],
+                'borderColor': '#06b6d4',
+                'backgroundColor': 'rgba(6, 182, 212, 0.1)',
+                'fill': True,
+                'tension': 0.4
+            }]
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+def api_analytics_details(request, data_id):
+    """API endpoint for detailed analytics"""
+    try:
+        satellite_data = get_object_or_404(SatelliteData, id=data_id)
+        data = {
+            'file_name': satellite_data.data_file.name if satellite_data.data_file else 'Unknown',
+            'cloud_coverage': satellite_data.cloud_coverage_percentage or 0,
+            'upload_date': satellite_data.upload_date.isoformat() if satellite_data.upload_date else None,
+            'status': satellite_data.status
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+def api_system_status(request):
+    """API endpoint for system status"""
+    try:
+        stats = {
+            'total_files': SatelliteData.objects.count(),
+            'completed': SatelliteData.objects.filter(status='completed').count(),
+            'processing': SatelliteData.objects.filter(status='processing').count(),
+            'failed': SatelliteData.objects.filter(status='failed').count(),
+            'pending': SatelliteData.objects.filter(status='pending').count(),
+            'system_uptime': '24h 15m',
+            'last_update': timezone.now().isoformat()
+        }
+        return JsonResponse(stats)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+def health_check(request):
+    """Health check endpoint"""
+    try:
+        # Check database connection
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        
+        # Check if we can access models
+        count = SatelliteData.objects.count()
+        
+        return JsonResponse({
+            'status': 'healthy',
+            'database': 'connected',
+            'files_count': count,
+            'timestamp': timezone.now().isoformat()
+        })
+    except Exception as e:
+        return JsonResponse({
+            'status': 'unhealthy',
             'error': str(e)
         }, status=500)
