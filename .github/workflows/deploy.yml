@@ -105,7 +105,7 @@ jobs:
         
         # Create systemd service for reliable deployment
         echo "🔧 Creating systemd service..."
-        cat > /tmp/tropical-cloud.service << 'EOF'
+        sudo tee /etc/systemd/system/tropical-cloud.service > /dev/null << 'SERVICE_EOF'
 [Unit]
 Description=Tropical Cloud Detection Application
 After=network.target
@@ -126,8 +126,7 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-EOF
-        sudo cp /tmp/tropical-cloud.service /etc/systemd/system/
+SERVICE_EOF
 
         # Set proper permissions
         sudo chown alwaysneerudj_gmail_com:alwaysneerudj_gmail_com /opt/tropical-cloud-detection
@@ -161,40 +160,39 @@ EOF
         done
         
         # Setup Nginx
-        echo 'server { 
-          listen 8080; 
-          server_name _; 
-          client_max_body_size 200M; 
-          
-          location /static/ { 
-            alias /opt/tropical-cloud-detection/staticfiles/; 
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-          } 
-          
-          location /media/ { 
-            alias /opt/tropical-cloud-detection/media/; 
-          } 
-          
-          location / { 
-            proxy_pass http://127.0.0.1:8000; 
-            proxy_set_header Host $host; 
-            proxy_set_header X-Real-IP $remote_addr; 
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_connect_timeout 30s;
-            proxy_send_timeout 30s;
-            proxy_read_timeout 30s;
-          } 
-        }' | sudo tee /etc/nginx/sites-available/tropical-cloud-detection
+        sudo tee /etc/nginx/sites-available/tropical-cloud-detection > /dev/null << 'NGINX_EOF'
+server { 
+  listen 8080; 
+  server_name _; 
+  client_max_body_size 200M; 
+  
+  location /static/ { 
+    alias /opt/tropical-cloud-detection/staticfiles/; 
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  } 
+  
+  location /media/ { 
+    alias /opt/tropical-cloud-detection/media/; 
+  } 
+  
+  location / { 
+    proxy_pass http://127.0.0.1:8000; 
+    proxy_set_header Host $host; 
+    proxy_set_header X-Real-IP $remote_addr; 
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_connect_timeout 30s;
+    proxy_send_timeout 30s;
+    proxy_read_timeout 30s;
+  } 
+}
+NGINX_EOF
         
         sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/
         sudo rm -f /etc/nginx/sites-enabled/default
         sudo nginx -t && sudo systemctl restart nginx
         
         echo "✅ Deployment completed!"
-        EOF
-        
-        echo "✅ Startup script created"
         
     - name: Upload startup script
       run: |
