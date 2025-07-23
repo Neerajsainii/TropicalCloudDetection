@@ -98,16 +98,51 @@ jobs:
         
         # Stop existing processes
         sudo pkill -f gunicorn || true
+        sleep 2
         
-        # Start Gunicorn
-        nohup sudo venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 4 --timeout 600 cloud_detection_portal.wsgi:application > gunicorn.log 2>&1 &
+        # Start Gunicorn and wait for it to be ready
+        nohup sudo venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --timeout 600 --log-level info cloud_detection_portal.wsgi:application > gunicorn.log 2>&1 &
+        
+        # Wait for Gunicorn to start
+        echo "⏳ Waiting for Gunicorn to start..."
+        for i in {1..30}; do
+          if curl -s http://127.0.0.1:8000/ > /dev/null 2>&1; then
+            echo "✅ Gunicorn is ready"
+            break
+          fi
+          sleep 1
+        done
         
         # Setup Nginx
-        echo 'server { listen 8080; server_name _; client_max_body_size 200M; location /static/ { alias /opt/tropical-cloud-detection/staticfiles/; } location /media/ { alias /opt/tropical-cloud-detection/media/; } location / { proxy_pass http://127.0.0.1:8000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; } }' | sudo tee /etc/nginx/sites-available/tropical-cloud-detection
+        echo 'server { 
+          listen 8080; 
+          server_name _; 
+          client_max_body_size 200M; 
+          
+          location /static/ { 
+            alias /opt/tropical-cloud-detection/staticfiles/; 
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+          } 
+          
+          location /media/ { 
+            alias /opt/tropical-cloud-detection/media/; 
+          } 
+          
+          location / { 
+            proxy_pass http://127.0.0.1:8000; 
+            proxy_set_header Host $host; 
+            proxy_set_header X-Real-IP $remote_addr; 
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_connect_timeout 30s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+          } 
+        }' | sudo tee /etc/nginx/sites-available/tropical-cloud-detection
         
         sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/
         sudo rm -f /etc/nginx/sites-enabled/default
-        sudo systemctl restart nginx
+        sudo nginx -t && sudo systemctl restart nginx
         
         echo "✅ Deployment completed!"
         EOF
