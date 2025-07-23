@@ -13,7 +13,7 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from .models import SatelliteData
 from .forms import SatelliteDataForm
-from .processing import process_satellite_data
+from .processing import process_satellite_file
 from .insat_algorithm import apply_insat_algorithm
 import json
 from datetime import datetime
@@ -45,13 +45,13 @@ def home(request):
                 satellite_data.save()
                 
                 # Process the data
-                result = process_satellite_data(satellite_data.id)
+                result = process_satellite_file(satellite_data.id)
                 
-                if result['success']:
+                if result:
                     messages.success(request, 'Data processed successfully!')
                     return redirect('results', data_id=satellite_data.id)
                 else:
-                    messages.error(request, f'Processing failed: {result["error"]}')
+                    messages.error(request, 'Processing failed')
                     
             except Exception as e:
                 logger.error(f"Error processing upload: {str(e)}")
@@ -96,7 +96,7 @@ def process_upload(request):
             )
             
             # Process the data
-            result = process_satellite_data(satellite_data.id)
+            result = process_satellite_file(satellite_data.id)
             
             return JsonResponse({
                 'success': True,
