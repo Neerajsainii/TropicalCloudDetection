@@ -105,7 +105,7 @@ jobs:
         
         # Create systemd service for reliable deployment
         echo "🔧 Creating systemd service..."
-        sudo tee /etc/systemd/system/tropical-cloud.service << EOF
+        cat > /tmp/tropical-cloud.service << 'EOF'
 [Unit]
 Description=Tropical Cloud Detection Application
 After=network.target
@@ -127,6 +127,7 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 EOF
+        sudo cp /tmp/tropical-cloud.service /etc/systemd/system/
 
         # Set proper permissions
         sudo chown alwaysneerudj_gmail_com:alwaysneerudj_gmail_com /opt/tropical-cloud-detection
