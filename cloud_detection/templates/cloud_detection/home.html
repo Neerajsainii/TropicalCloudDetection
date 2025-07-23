@@ -784,136 +784,52 @@ async function handleUploadSubmit(event) {
         const fileSize = selectedFile.size;
         const fileName = selectedFile.name;
         
-        // Check if file is large (>32MB) - use GCS upload
-        if (fileSize > 32 * 1024 * 1024) {
-            uploadStatus.textContent = 'Getting upload URL for large file...';
-            
-            // Get signed URL for GCS upload
-            const response = await fetch('/get-upload-url/', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to get upload URL');
+        // Optimized for 40-100MB files - direct upload
+        uploadStatus.textContent = 'Uploading your satellite data...';
+        
+        const formData = new FormData();
+        formData.append('file_path', selectedFile);
+        formData.append('satellite_name', document.querySelector('[name=satellite_name]').value);
+        formData.append('data_type', document.querySelector('[name=data_type]').value);
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        
+        // Use XMLHttpRequest for progress tracking
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const percentComplete = (e.loaded / e.total) * 100;
+                progressBar.style.width = percentComplete + '%';
+                progressText.textContent = Math.round(percentComplete) + '%';
             }
-            
-            const data = await response.json();
-            
-            // Check if upload_url is available
-            if (!data.upload_url) {
-                const errorMsg = data.message || 'Failed to get upload URL. Please use the regular upload form for files under 32MB.';
-                console.error('GCS Upload Error:', data);
-                throw new Error(errorMsg);
-            }
-            
-            uploadStatus.textContent = 'Uploading to Google Cloud Storage...';
-            
-            // Upload to GCS using signed URL
-            const gcsResponse = await fetch(data.upload_url, {
-                method: 'PUT',
-                body: selectedFile,
-                headers: {
-                    'Content-Type': selectedFile.type || 'application/octet-stream'
-                }
-            });
-            
-            if (!gcsResponse.ok) {
-                throw new Error('Failed to upload to Google Cloud Storage');
-            }
-            
-            // Simulate progress for GCS upload (since we can't track real progress with signed URLs)
-            for (let i = 0; i <= 100; i += 5) {
-                progressBar.style.width = i + '%';
-                progressText.textContent = i + '%';
-                await new Promise(resolve => setTimeout(resolve, 50));
-            }
-            
-            uploadStatus.textContent = 'Notifying server...';
-            
-            // Notify server that file was uploaded to GCS
-            const formData = new FormData();
-            formData.append('upload_source', 'gcs');
-            formData.append('file_name', fileName);
-            formData.append('gcs_path', data.filename);
-            formData.append('file_size', fileSize);
-            formData.append('gcs_bucket', data.bucket_name);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            
-            const notifyResponse = await fetch('/upload/', {
-                method: 'POST',
-                body: formData
-            });
-            
-            if (!notifyResponse.ok) {
-                throw new Error('Failed to notify server');
-            }
-            
-            const result = await notifyResponse.json();
-            
-            uploadStatus.textContent = 'Upload complete! Processing started...';
-            
-            // Add to processing queue visually
-            addToProcessingQueue(fileName);
-            
-            // Reset form after 2 seconds
-            setTimeout(() => {
-                resetUploadForm();
-                if (result.redirect_url) {
-                    window.location.href = result.redirect_url;
-                }
-            }, 2000);
-            
-        } else {
-            // Small file - direct upload
-            uploadStatus.textContent = 'Uploading...';
-            
-            const formData = new FormData();
-            formData.append('file_path', selectedFile);
-            formData.append('satellite_name', document.querySelector('[name=satellite_name]').value);
-            formData.append('data_type', document.querySelector('[name=data_type]').value);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            
-            // Use XMLHttpRequest for progress tracking
-            const xhr = new XMLHttpRequest();
-            
-            xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                    const percentComplete = (e.loaded / e.total) * 100;
-                    progressBar.style.width = percentComplete + '%';
-                    progressText.textContent = Math.round(percentComplete) + '%';
-                }
-            });
-            
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    const result = JSON.parse(xhr.responseText);
-                    uploadStatus.textContent = 'Upload complete! Processing started...';
-                    
-                    // Add to processing queue visually
-                    addToProcessingQueue(fileName);
-                    
-                    // Reset form after 2 seconds
-                    setTimeout(() => {
-                        resetUploadForm();
-                        if (result.redirect_url) {
-                            window.location.href = result.redirect_url;
-                        }
-                    }, 2000);
-                } else {
-                    throw new Error('Upload failed');
-                }
-            };
-            
-            xhr.onerror = function() {
+        });
+        
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                const result = JSON.parse(xhr.responseText);
+                uploadStatus.textContent = 'Upload complete! Processing started...';
+                
+                // Add to processing queue visually
+                addToProcessingQueue(fileName);
+                
+                // Reset form after 2 seconds
+                setTimeout(() => {
+                    resetUploadForm();
+                    if (result.redirect_url) {
+                        window.location.href = result.redirect_url;
+                    }
+                }, 2000);
+            } else {
                 throw new Error('Upload failed');
-            };
-            
-            xhr.open('POST', '/upload/');
-            xhr.send(formData);
-        }
+            }
+        };
+        
+        xhr.onerror = function() {
+            throw new Error('Upload failed');
+        };
+        
+        xhr.open('POST', '/upload/');
+        xhr.send(formData);
         
     } catch (error) {
         console.error('Upload error:', error);
@@ -921,9 +837,9 @@ async function handleUploadSubmit(event) {
         // Provide specific error messages
         let errorMessage = error.message;
         if (error.message.includes('Failed to get upload URL')) {
-            errorMessage = 'Large file upload is currently unavailable. Please use files under 32MB or contact support.';
+            errorMessage = 'Upload service is currently unavailable. Please try again or contact support.';
         } else if (error.message.includes('Google Cloud Storage')) {
-            errorMessage = 'Cloud storage is not configured properly. Please use files under 32MB or contact support.';
+            errorMessage = 'Upload service is not configured properly. Please try again or contact support.';
         }
         
         uploadStatus.textContent = 'Upload failed: ' + errorMessage;

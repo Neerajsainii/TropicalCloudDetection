@@ -153,21 +153,13 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# File upload settings optimized for Compute Engine (removed Cloud Run 32MB limitation)
-if ENVIRONMENT == 'production':
-    # Production settings optimized for 50-100MB file processing in 30-40 seconds
-    FILE_UPLOAD_MAX_MEMORY_SIZE = config('FILE_UPLOAD_MAX_MEMORY_SIZE', default=209715200, cast=int)  # 200MB default
-    DATA_UPLOAD_MAX_MEMORY_SIZE = config('DATA_UPLOAD_MAX_MEMORY_SIZE', default=209715200, cast=int)   # 200MB default
-    DATA_UPLOAD_MAX_NUMBER_FIELDS = config('DATA_UPLOAD_MAX_NUMBER_FIELDS', default=1000, cast=int)
-    FILE_UPLOAD_TIMEOUT = config('FILE_UPLOAD_TIMEOUT', default=300, cast=int)  # 5 minutes timeout
-    print(f"📤 File upload settings: {FILE_UPLOAD_MAX_MEMORY_SIZE // (1024*1024)}MB max size")
-else:
-    # Local development settings
-    FILE_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024  # 32MB for local development
-    DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024   # 32MB for local development
-    DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
-    FILE_UPLOAD_TIMEOUT = 300  # 5 minutes timeout
-    print("📤 Local development file upload: 32MB max size")
+# File upload settings optimized for 40-100MB file processing
+# Removed 32MB Cloud Run limitation - now supports your actual file sizes
+FILE_UPLOAD_MAX_MEMORY_SIZE = config('FILE_UPLOAD_MAX_MEMORY_SIZE', default=209715200, cast=int)  # 200MB default
+DATA_UPLOAD_MAX_MEMORY_SIZE = config('DATA_UPLOAD_MAX_MEMORY_SIZE', default=209715200, cast=int)   # 200MB default
+DATA_UPLOAD_MAX_NUMBER_FIELDS = config('DATA_UPLOAD_MAX_NUMBER_FIELDS', default=1000, cast=int)
+FILE_UPLOAD_TIMEOUT = config('FILE_UPLOAD_TIMEOUT', default=600, cast=int)  # 10 minutes timeout for large files
+print(f"📤 Optimized for 40-100MB files: {FILE_UPLOAD_MAX_MEMORY_SIZE // (1024*1024)}MB max size")
 
 # Session and cache settings for better performance on Compute Engine
 if ENVIRONMENT == 'production':

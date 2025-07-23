@@ -186,17 +186,10 @@ def upload_file(request):
                 return JsonResponse({'error': f'Failed to start processing: {e}'}, status=500)
         
         else:
-            # Handle direct file upload (for small files < 32MB)
+            # Handle direct file upload (optimized for 40-100MB files)
             if 'file_path' in request.FILES:
                 uploaded_file = request.FILES['file_path']
                 file_size = uploaded_file.size
-                
-                # Check if file is too large for direct upload
-                if file_size > 32 * 1024 * 1024:  # 32MB
-                    return JsonResponse({
-                        'error': 'File too large for direct upload. Please use the large file upload interface.',
-                        'max_size': '32MB'
-                    }, status=413)
                 
                 logger.info(f"Direct file upload: {uploaded_file.name}, Size: {file_size} bytes")
             
@@ -640,7 +633,7 @@ def get_upload_url(request):
         logger.error("Google Cloud Storage library not available")
         return JsonResponse({
             'error': 'Google Cloud Storage not available',
-            'message': 'Large file upload is not available. Please use files under 32MB.',
+            'message': 'Large file upload is not available. Please use direct upload.',
             'upload_method': 'unavailable'
         }, status=500)
     
@@ -650,7 +643,7 @@ def get_upload_url(request):
         logger.info("GCS signed URLs disabled, returning fallback response")
         return JsonResponse({
             'error': 'Large file upload temporarily unavailable',
-            'message': 'Please use the regular upload form for files under 32MB.',
+            'message': 'Please use the direct upload form for your files.',
             'upload_method': 'disabled'
         }, status=503)
     
