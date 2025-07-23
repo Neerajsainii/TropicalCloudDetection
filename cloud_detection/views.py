@@ -14,7 +14,6 @@ from django.core.files.base import ContentFile
 from .models import SatelliteData
 from .forms import SatelliteDataForm
 from .processing import process_satellite_file
-from .insat_algorithm import apply_insat_algorithm
 import json
 from datetime import datetime
 import traceback
