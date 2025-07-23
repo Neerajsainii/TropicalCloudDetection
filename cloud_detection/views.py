@@ -644,6 +644,16 @@ def get_upload_url(request):
             'upload_method': 'unavailable'
         }, status=500)
     
+    # Check if GCS signed URLs are disabled
+    use_signed_urls = os.environ.get('USE_GCS_SIGNED_URLS', 'True').lower() == 'true'
+    if not use_signed_urls:
+        logger.info("GCS signed URLs disabled, returning fallback response")
+        return JsonResponse({
+            'error': 'Large file upload temporarily unavailable',
+            'message': 'Please use the regular upload form for files under 32MB.',
+            'upload_method': 'disabled'
+        }, status=503)
+    
     try:
         # Initialize Google Cloud Storage client
         logger.info("Initializing Google Cloud Storage client...")
