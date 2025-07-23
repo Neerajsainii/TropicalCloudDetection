@@ -96,20 +96,66 @@ jobs:
         # Collect static files
         sudo venv/bin/python manage.py collectstatic --noinput
         
-        # Stop existing processes
+        # Stop existing processes and clean up
+        echo "🧹 Cleaning up existing processes..."
         sudo pkill -f gunicorn || true
-        sleep 2
+        sudo systemctl stop tropical-cloud || true
+        sudo systemctl disable tropical-cloud || true
+        sleep 3
         
-        # Start Gunicorn and wait for it to be ready
-        nohup sudo venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --timeout 600 --log-level info cloud_detection_portal.wsgi:application > gunicorn.log 2>&1 &
+        # Create systemd service for reliable deployment
+        echo "🔧 Creating systemd service..."
+        sudo tee /etc/systemd/system/tropical-cloud.service << EOF
+[Unit]
+Description=Tropical Cloud Detection Application
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=alwaysneerudj_gmail_com
+Group=alwaysneerudj_gmail_com
+WorkingDirectory=/opt/tropical-cloud-detection
+Environment=PATH=/opt/tropical-cloud-detection/venv/bin
+Environment=PYTHONPATH=/opt/tropical-cloud-detection
+ExecStart=/opt/tropical-cloud-detection/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --timeout 600 --log-level warning --access-logfile - --error-logfile - cloud_detection_portal.wsgi:application
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+        # Set proper permissions
+        sudo chown alwaysneerudj_gmail_com:alwaysneerudj_gmail_com /opt/tropical-cloud-detection
+        sudo chmod +x /opt/tropical-cloud-detection/venv/bin/gunicorn
         
-        # Wait for Gunicorn to start
-        echo "⏳ Waiting for Gunicorn to start..."
-        for i in {1..30}; do
+        # Enable and start the service
+        echo "🚀 Starting systemd service..."
+        sudo systemctl daemon-reload
+        sudo systemctl enable tropical-cloud
+        sudo systemctl start tropical-cloud
+        
+        # Wait for service to be ready with detailed debugging
+        echo "⏳ Waiting for service to start..."
+        for i in {1..60}; do
+          echo "Check $i/60: Service status..."
+          sudo systemctl status tropical-cloud --no-pager
+          
           if curl -s http://127.0.0.1:8000/ > /dev/null 2>&1; then
-            echo "✅ Gunicorn is ready"
+            echo "✅ Service is responding on port 8000"
             break
           fi
+          
+          if [ $i -eq 60 ]; then
+            echo "❌ Service failed to start after 60 seconds"
+            echo "🔍 Debugging service failure..."
+            sudo journalctl -u tropical-cloud --no-pager -n 50
+            exit 1
+          fi
+          
           sleep 1
         done
         
@@ -180,20 +226,49 @@ jobs:
         
     - name: Test application
       run: |
-        echo "🔍 Testing application..."
+        echo "🔍 Comprehensive application testing..."
         set -x
         EXTERNAL_IP=$(gcloud compute instances describe tropical-cloud-app --zone=asia-southeast1-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
         echo "🌐 Testing URL: http://$EXTERNAL_IP:8080/"
         
-        # Test with curl and capture detailed output
+        # Test systemd service status
+        echo "🔧 Checking systemd service status..."
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl status tropical-cloud --no-pager" || echo "Service status check failed"
+        
+        # Test Gunicorn process
+        echo "🔧 Checking Gunicorn processes..."
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="ps aux | grep gunicorn" || echo "Process check failed"
+        
+        # Test direct Gunicorn access
+        echo "🔧 Testing direct Gunicorn access..."
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="curl -s http://127.0.0.1:8000/ | head -20" || echo "Direct Gunicorn test failed"
+        
+        # Test Nginx status
+        echo "🔧 Checking Nginx status..."
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl status nginx --no-pager" || echo "Nginx status check failed"
+        
+        # Test external access
+        echo "🔧 Testing external access..."
         curl -v -f http://$EXTERNAL_IP:8080/ || {
           echo "❌ Application test failed"
-          echo "🔍 Checking VM status:"
-          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="ps aux | grep gunicorn" || echo "SSH failed"
+          echo "🔍 Detailed debugging information:"
+          
+          echo "📋 Systemd service logs:"
+          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo journalctl -u tropical-cloud --no-pager -n 20" || echo "Service logs failed"
+          
+          echo "📋 Nginx error logs:"
+          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo tail -n 20 /var/log/nginx/error.log" || echo "Nginx logs failed"
+          
+          echo "📋 Nginx access logs:"
+          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo tail -n 10 /var/log/nginx/access.log" || echo "Nginx access logs failed"
+          
+          echo "📋 Process status:"
+          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="ps aux | grep -E '(gunicorn|nginx)'" || echo "Process status failed"
+          
           exit 1
         }
         
-        echo "✅ Application is responding!"
+        echo "✅ Application is responding successfully!"
         
     - name: Final status
       run: |
