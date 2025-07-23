@@ -39,7 +39,22 @@ jobs:
       run: |
         echo "📦 Creating deployment package..."
         set -x
-        tar -czf app.tar.gz --exclude='.git' --exclude='venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='.env*' --exclude='db.sqlite3*' --exclude='media' --exclude='staticfiles' --exclude='key.json' --exclude='gcp-github-actions*' .
+        
+        # Create a clean directory for packaging
+        mkdir -p /tmp/deploy
+        cp -r . /tmp/deploy/
+        cd /tmp/deploy
+        
+        # Remove unwanted files and directories
+        rm -rf .git venv __pycache__ *.pyc .env* db.sqlite3* media staticfiles key.json gcp-github-actions*
+        find . -name "*.pyc" -delete
+        find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+        
+        # Create tar archive from clean directory
+        tar -czf /tmp/app.tar.gz .
+        mv /tmp/app.tar.gz /home/runner/work/TropicalCloudDetection/TropicalCloudDetection/
+        cd /home/runner/work/TropicalCloudDetection/TropicalCloudDetection/
+        
         ls -la app.tar.gz
         echo "✅ Package created successfully"
         
