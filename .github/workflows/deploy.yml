@@ -89,7 +89,7 @@ jobs:
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl restart tropical-cloud-detection"
         gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl restart nginx"
         
-    - name: Verify
+    - name: Verify deployment
       run: |
-        echo "🎉 Deployment Complete!"
-        echo "🔗 App URL: http://35.247.130.75:8080" 
+        sleep 10
+        curl -f http://35.247.130.75:8080/ || exit 1
