@@ -135,7 +135,7 @@ def view_results(request, data_id):
 
 def history(request):
     """Display processing history"""
-    satellite_data_list = SatelliteData.objects.all().order_by('-upload_date')
+    satellite_data_list = SatelliteData.objects.all().order_by('-upload_datetime')
     return render(request, 'cloud_detection/history.html', {
         'satellite_data_list': satellite_data_list
     })
@@ -223,14 +223,14 @@ def api_real_time_data(request):
     """API endpoint for real-time data"""
     try:
         # Get latest data
-        latest_data = SatelliteData.objects.filter(status='completed').order_by('-upload_date').first()
+        latest_data = SatelliteData.objects.filter(status='completed').order_by('-upload_datetime').first()
         
         if latest_data:
             return JsonResponse({
                 'success': True,
                 'data': {
                     'id': latest_data.id,
-                    'upload_date': latest_data.upload_date.isoformat(),
+                    'upload_date': latest_data.upload_datetime.isoformat(),
                     'status': latest_data.status,
                     'description': latest_data.description
                 }

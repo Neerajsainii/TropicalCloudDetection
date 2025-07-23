@@ -1,0 +1,135 @@
+/* Main CSS for Tropical Cloud Detection */
+
+/* Custom CSS for the satellite theme */
+.bg-gradient-space {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 50%, #581c87 100%);
+}
+
+.backdrop-blur-md {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.animate-bounce-delayed-1 {
+    animation: bounce 2s infinite;
+    animation-delay: 0.2s;
+}
+
+.animate-bounce-delayed-2 {
+    animation: bounce 2s infinite;
+    animation-delay: 0.4s;
+}
+
+.animate-bounce-delayed-3 {
+    animation: bounce 2s infinite;
+    animation-delay: 0.6s;
+}
+
+.text-gradient {
+    background: linear-gradient(135deg, #06b6d4, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.card-glass {
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-glass {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    backdrop-filter: blur(12px);
+}
+
+.btn-glass:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.tab-button {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    transition: all 0.3s ease;
+}
+
+.tab-button.active {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.tab-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+
+/* Progress bar animations */
+.progress-animated {
+    animation: progress-shine 2s infinite;
+}
+
+@keyframes progress-shine {
+    0% { background-position: -200px 0; }
+    100% { background-position: calc(200px + 100%) 0; }
+}
+
+/* Satellite orbit animation */
+.satellite-orbit {
+    animation: orbit 20s linear infinite;
+}
+
+@keyframes orbit {
+    from { transform: rotate(0deg) translateX(50px) rotate(0deg); }
+    to { transform: rotate(360deg) translateX(50px) rotate(-360deg); }
+}
+
+/* File upload styling */
+.file-upload-area {
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.file-upload-area:hover {
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.file-upload-area.dragover {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+/* Status indicators */
+.status-pending {
+    color: #f59e0b;
+}
+
+.status-processing {
+    color: #3b82f6;
+}
+
+.status-completed {
+    color: #10b981;
+}
+
+.status-failed {
+    color: #ef4444;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+    
+    .card {
+        margin-bottom: 1rem;
+    }
+} 
