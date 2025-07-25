@@ -29,7 +29,7 @@ def home(request):
         if form.is_valid():
             try:
                 # Save the uploaded file directly
-                uploaded_file = request.FILES['data_file']
+                uploaded_file = request.FILES['file_path']
                 
                 # Create a unique filename
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -40,8 +40,8 @@ def home(request):
                 
                 # Create database record
                 satellite_data = form.save(commit=False)
-                satellite_data.data_file = file_path
-                satellite_data.upload_date = datetime.now()
+                satellite_data.file_path = file_path
+                satellite_data.upload_datetime = datetime.now()
                 satellite_data.status = 'uploaded'
                 satellite_data.save()
                 
@@ -50,32 +50,99 @@ def home(request):
                 
                 if result:
                     messages.success(request, 'Data processed successfully!')
-                    return redirect('results', data_id=satellite_data.id)
+                    return redirect('cloud_detection:results', data_id=satellite_data.id)
                 else:
                     messages.error(request, 'Processing failed')
                     
             except Exception as e:
                 logger.error(f"Error processing upload: {str(e)}")
                 messages.error(request, f'Error processing file: {str(e)}')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
+    else:
+        form = SatelliteDataForm()
+    
+    # Get context data for dashboard
+    total_files = SatelliteData.objects.count()
+    completed_files = SatelliteData.objects.filter(status='completed').count()
+    recent_results = SatelliteData.objects.all().order_by('-upload_datetime')[:5]
+    
+    context = {
+        'form': form,
+        'total_files': total_files,
+        'completed_files': completed_files,
+        'recent_results': recent_results
+    }
+    
+    return render(request, 'cloud_detection/home.html', context)
+
+def upload_file(request):
+    """Handle file upload"""
+    if request.method == 'POST':
+        form = SatelliteDataForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                # Save the uploaded file directly
+                uploaded_file = request.FILES['file_path']
+                
+                # Create a unique filename
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                filename = f"satellite_data_{timestamp}_{uploaded_file.name}"
+                
+                # Save file to media directory
+                file_path = default_storage.save(f'uploads/{filename}', uploaded_file)
+                
+                # Create database record
+                satellite_data = form.save(commit=False)
+                satellite_data.file_path = file_path
+                satellite_data.upload_datetime = datetime.now()
+                satellite_data.status = 'uploaded'
+                satellite_data.save()
+                
+                # Process the data
+                result = process_satellite_file(satellite_data.id)
+                
+                if result:
+                    messages.success(request, 'Data processed successfully!')
+                    return redirect('cloud_detection:results', data_id=satellite_data.id)
+                else:
+                    messages.error(request, 'Processing failed')
+                    
+            except Exception as e:
+                logger.error(f"Error processing upload: {str(e)}")
+                messages.error(request, f'Error processing file: {str(e)}')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
     else:
         form = SatelliteDataForm()
     
     return render(request, 'cloud_detection/home.html', {'form': form})
-
-def upload_file(request):
-    """Upload file view - redirects to home"""
-    return redirect('cloud_detection:home')
 
 def upload_large_files(request):
     """Large file upload page"""
     return render(request, 'cloud_detection/upload_large_files.html')
 
 def get_upload_url(request):
-    """Get upload URL - DISABLED, use direct upload"""
-    return JsonResponse({
-        'success': False,
-        'error': 'Direct upload only - no signed URLs needed'
-    })
+    """Get upload URL for large files"""
+    try:
+        # For now, return a simple response indicating direct upload is preferred
+        return JsonResponse({
+            'success': True,
+            'message': 'Direct upload is preferred for this application',
+            'upload_url': None,
+            'filename': None,
+            'bucket_name': None
+        })
+    except Exception as e:
+        logger.error(f"Error in get_upload_url: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 
 def process_upload(request):
     """Process uploaded file"""
