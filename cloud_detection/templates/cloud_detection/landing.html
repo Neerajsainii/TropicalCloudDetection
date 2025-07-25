@@ -1,0 +1,151 @@
+{% extends 'cloud_detection/base.html' %}
+
+{% block title %}Welcome - Tropical Cloud Detection{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Welcome Section -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8 text-center">
+            <div class="card card-glass border-0">
+                <div class="card-body p-5">
+                    <h2 class="display-4 fw-bold text-white mb-4">
+                        Welcome to Tropical Cloud Detection
+                    </h2>
+                    <p class="fs-5 text-white-75 mb-5">
+                        Advanced satellite-based cloud detection system for tropical regions with real-time monitoring and AI-powered analysis
+                    </p>
+                    <div class="d-flex justify-content-center gap-3">
+                        <a href="{% url 'cloud_detection:signup' %}" class="btn btn-lg" style="background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none;">
+                            <i class="fas fa-user-plus me-2"></i>Get Started
+                        </a>
+                        <a href="{% url 'cloud_detection:login' %}" class="btn btn-lg btn-glass">
+                            <i class="fas fa-sign-in-alt me-2"></i>Sign In
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3 class="text-center text-white mb-5">Key Features</h3>
+        </div>
+        
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card card-glass border-0 h-100">
+                <div class="card-body text-center p-4">
+                    <div class="d-flex align-items-center justify-content-center mb-3 rounded-circle mx-auto" 
+                         style="width: 80px; height: 80px; background: linear-gradient(135deg, #3b82f6, #06b6d4);">
+                        <i class="fas fa-satellite text-white fs-3"></i>
+                    </div>
+                    <h5 class="text-white mb-3">Satellite Data Processing</h5>
+                    <p class="text-white-75">Upload and process satellite data from various sources including INSAT, MODIS, and more.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card card-glass border-0 h-100">
+                <div class="card-body text-center p-4">
+                    <div class="d-flex align-items-center justify-content-center mb-3 rounded-circle mx-auto" 
+                         style="width: 80px; height: 80px; background: linear-gradient(135deg, #a855f7, #ec4899);">
+                        <i class="fas fa-cloud text-white fs-3"></i>
+                    </div>
+                    <h5 class="text-white mb-3">Cloud Detection</h5>
+                    <p class="text-white-75">Advanced algorithms for accurate cloud detection and classification in tropical regions.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card card-glass border-0 h-100">
+                <div class="card-body text-center p-4">
+                    <div class="d-flex align-items-center justify-content-center mb-3 rounded-circle mx-auto" 
+                         style="width: 80px; height: 80px; background: linear-gradient(135deg, #10b981, #14b8a6);">
+                        <i class="fas fa-chart-line text-white fs-3"></i>
+                    </div>
+                    <h5 class="text-white mb-3">Real-time Analysis</h5>
+                    <p class="text-white-75">Get instant results with our optimized processing pipeline for large satellite files.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card card-glass border-0 h-100">
+                <div class="card-body text-center p-4">
+                    <div class="d-flex align-items-center justify-content-center mb-3 rounded-circle mx-auto" 
+                         style="width: 80px; height: 80px; background: linear-gradient(135deg, #f59e0b, #ef4444);">
+                        <i class="fas fa-globe text-white fs-3"></i>
+                    </div>
+                    <h5 class="text-white mb-3">Global Coverage</h5>
+                    <p class="text-white-75">Process data from any tropical region with comprehensive geographic coverage.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- How It Works Section -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3 class="text-center text-white mb-5">How It Works</h3>
+        </div>
+        
+        <div class="col-md-4 text-center mb-4">
+            <div class="card card-glass border-0">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-center mb-3 rounded-circle mx-auto" 
+                         style="width: 60px; height: 60px; background: linear-gradient(135deg, #3b82f6, #06b6d4);">
+                        <span class="text-white fw-bold fs-4">1</span>
+                    </div>
+                    <h5 class="text-white mb-3">Upload Data</h5>
+                    <p class="text-white-75">Upload your satellite data files in HDF5, NetCDF, or other supported formats.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 text-center mb-4">
+            <div class="card card-glass border-0">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-center mb-3 rounded-circle mx-auto" 
+                         style="width: 60px; height: 60px; background: linear-gradient(135deg, #a855f7, #ec4899);">
+                        <span class="text-white fw-bold fs-4">2</span>
+                    </div>
+                    <h5 class="text-white mb-3">Process</h5>
+                    <p class="text-white-75">Our advanced algorithms analyze the data and detect cloud patterns automatically.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 text-center mb-4">
+            <div class="card card-glass border-0">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-center mb-3 rounded-circle mx-auto" 
+                         style="width: 60px; height: 60px; background: linear-gradient(135deg, #10b981, #14b8a6);">
+                        <span class="text-white fw-bold fs-4">3</span>
+                    </div>
+                    <h5 class="text-white mb-3">Get Results</h5>
+                    <p class="text-white-75">Download detailed reports, visualizations, and analysis results.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CTA Section -->
+    <div class="row mt-5">
+        <div class="col-12 text-center">
+            <div class="card card-glass border-0">
+                <div class="card-body p-5">
+                    <h3 class="text-white mb-4">Ready to Get Started?</h3>
+                    <p class="text-white-75 mb-4">Join thousands of researchers and meteorologists using our platform for tropical cloud analysis.</p>
+                    <a href="{% url 'cloud_detection:signup' %}" class="btn btn-lg" style="background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none;">
+                        <i class="fas fa-rocket me-2"></i>Start Analyzing Now
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

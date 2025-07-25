@@ -4,8 +4,16 @@ from . import views
 app_name = 'cloud_detection'
 
 urlpatterns = [
-    # Main dashboard
-    path('', views.home, name='home'),
+    # Authentication
+    path('login/', views.login_view, name='login'),
+    path('signup/', views.signup_view, name='signup'),
+    path('logout/', views.logout_view, name='logout'),
+    
+    # Landing page (for non-authenticated users)
+    path('', views.landing_view, name='landing'),
+    
+    # Main dashboard (requires authentication)
+    path('dashboard/', views.home, name='home'),
     
     # File operations
     path('upload/', views.upload_file, name='upload_file'),

@@ -13,6 +13,10 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.urls import reverse
 from django.utils import timezone
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
 from .models import SatelliteData
 from .forms import SatelliteDataForm
 from .processing import process_satellite_file
@@ -22,6 +26,53 @@ import traceback
 
 logger = logging.getLogger(__name__)
 
+def signup_view(request):
+    """User registration view"""
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            messages.success(request, 'Account created successfully! Welcome to Tropical Cloud Detection.')
+            return redirect('cloud_detection:home')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
+    else:
+        form = UserCreationForm()
+    
+    return render(request, 'cloud_detection/signup.html', {'form': form})
+
+def login_view(request):
+    """User login view"""
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            login(request, user)
+            messages.success(request, f'Welcome back, {user.username}!')
+            return redirect('cloud_detection:home')
+        else:
+            messages.error(request, 'Invalid username or password.')
+    
+    return render(request, 'cloud_detection/login.html')
+
+def logout_view(request):
+    """User logout view"""
+    logout(request)
+    messages.success(request, 'You have been logged out successfully.')
+    return redirect('cloud_detection:login')
+
+def landing_view(request):
+    """Landing page for non-authenticated users"""
+    if request.user.is_authenticated:
+        return redirect('cloud_detection:home')
+    return render(request, 'cloud_detection/landing.html')
+
+@login_required
 def home(request):
     """Home page view"""
     if request.method == 'POST':
@@ -41,6 +92,7 @@ def home(request):
                 # Create database record
                 satellite_data = form.save(commit=False)
                 satellite_data.file_path = file_path
+                satellite_data.uploaded_by = request.user  # Associate with current user
                 satellite_data.upload_datetime = datetime.now()
                 satellite_data.status = 'uploaded'
                 satellite_data.save()
@@ -64,10 +116,10 @@ def home(request):
     else:
         form = SatelliteDataForm()
     
-    # Get context data for dashboard
-    total_files = SatelliteData.objects.count()
-    completed_files = SatelliteData.objects.filter(status='completed').count()
-    recent_results = SatelliteData.objects.all().order_by('-upload_datetime')[:5]
+    # Get context data for dashboard - only show user's data
+    total_files = SatelliteData.objects.filter(uploaded_by=request.user).count()
+    completed_files = SatelliteData.objects.filter(uploaded_by=request.user, status='completed').count()
+    recent_results = SatelliteData.objects.filter(uploaded_by=request.user).order_by('-upload_datetime')[:5]
     
     context = {
         'form': form,
@@ -78,7 +130,7 @@ def home(request):
     
     return render(request, 'cloud_detection/home.html', context)
 
-@csrf_exempt
+@login_required
 def upload_file(request):
     """Handle file upload"""
     if request.method == 'POST':
@@ -123,6 +175,7 @@ def upload_file(request):
     
     return render(request, 'cloud_detection/home.html', {'form': form})
 
+@login_required
 def upload_large_files(request):
     """Large file upload page"""
     return render(request, 'cloud_detection/upload_large_files.html')
@@ -186,24 +239,26 @@ def process_upload(request):
     
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
+@login_required
 def results(request, data_id):
     """Display processing results"""
     try:
-        satellite_data = SatelliteData.objects.get(id=data_id)
+        satellite_data = SatelliteData.objects.get(id=data_id, uploaded_by=request.user)
         return render(request, 'cloud_detection/results.html', {
             'satellite_data': satellite_data
         })
     except SatelliteData.DoesNotExist:
         messages.error(request, 'Data not found')
-        return redirect('home')
+        return redirect('cloud_detection:home')
 
 def view_results(request, data_id):
     """View results - alias for results"""
     return results(request, data_id)
 
+@login_required
 def history(request):
     """Display processing history"""
-    satellite_data_list = SatelliteData.objects.all().order_by('-upload_datetime')
+    satellite_data_list = SatelliteData.objects.filter(uploaded_by=request.user).order_by('-upload_datetime')
     return render(request, 'cloud_detection/history.html', {
         'satellite_data_list': satellite_data_list
     })
@@ -257,11 +312,12 @@ def download_file(request, data_id, file_type):
         messages.error(request, f'Error downloading file: {str(e)}')
         return redirect('cloud_detection:home')
 
+@login_required
 def delete_data(request, data_id):
     """Delete data"""
     if request.method == 'POST':
         try:
-            satellite_data = get_object_or_404(SatelliteData, id=data_id)
+            satellite_data = get_object_or_404(SatelliteData, id=data_id, uploaded_by=request.user)
             satellite_data.delete()
             messages.success(request, 'Data deleted successfully')
         except Exception as e:

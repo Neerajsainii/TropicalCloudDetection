@@ -193,11 +193,17 @@
                 </div>
                 
                 <!-- Navigation -->
+                {% if user.is_authenticated %}
                 <nav class="d-none d-md-flex align-items-center gap-4">
                     <a href="{% url 'cloud_detection:home' %}" class="text-white text-opacity-75 text-decoration-none">Dashboard</a>
-                    <a href="{% url 'cloud_detection:data_history' %}" class="text-white text-opacity-75 text-decoration-none">Analytics</a>
+                    <a href="{% url 'cloud_detection:data_history' %}" class="text-white text-opacity-75 text-decoration-none">My Data</a>
                     <a href="{% url 'cloud_detection:about' %}" class="text-white text-opacity-75 text-decoration-none">About</a>
                 </nav>
+                {% else %}
+                <nav class="d-none d-md-flex align-items-center gap-4">
+                    <a href="{% url 'cloud_detection:about' %}" class="text-white text-opacity-75 text-decoration-none">About</a>
+                </nav>
+                {% endif %}
                 
                 <!-- Status and Menu -->
                 <div class="d-flex align-items-center gap-3">
@@ -205,12 +211,41 @@
                         <div class="w-2 h-2 bg-success rounded-circle live-pulse"></div>
                         <span class="text-success">Live</span>
                     </div>
+                    
+                    {% if user.is_authenticated %}
+                    <!-- User Menu -->
+                    <div class="dropdown">
+                        <button class="btn-glass btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user me-2"></i>
+                            {{ user.username }}
+                        </button>
+                        <ul class="dropdown-menu card-glass border border-white border-opacity-10">
+                            <li><span class="dropdown-item-text text-white-75 small">Welcome, {{ user.username }}</span></li>
+                            <li><hr class="dropdown-divider border-white border-opacity-10"></li>
+                            <li><a class="dropdown-item text-white text-decoration-none" href="{% url 'cloud_detection:home' %}">
+                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            </a></li>
+                            <li><a class="dropdown-item text-white text-decoration-none" href="{% url 'cloud_detection:data_history' %}">
+                                <i class="fas fa-history me-2"></i>My Data
+                            </a></li>
+                            <li><hr class="dropdown-divider border-white border-opacity-10"></li>
+                            <li><a class="dropdown-item text-white text-decoration-none" href="{% url 'cloud_detection:logout' %}">
+                                <i class="fas fa-sign-out-alt me-2"></i>Logout
+                            </a></li>
+                        </ul>
+                    </div>
+                    {% else %}
+                    <!-- Login/Signup Buttons -->
+                    <a href="{% url 'cloud_detection:login' %}" class="btn-glass btn btn-sm">
+                        <i class="fas fa-sign-in-alt me-2"></i>Login
+                    </a>
+                    <a href="{% url 'cloud_detection:signup' %}" class="btn btn-sm" style="background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none;">
+                        <i class="fas fa-user-plus me-2"></i>Sign Up
+                    </a>
+                    {% endif %}
+                    
                     <button class="btn-glass btn btn-sm d-md-none" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
                         <i class="fas fa-bars"></i>
-                    </button>
-                    <button class="btn-glass btn btn-sm d-none d-md-inline-flex">
-                        <i class="fas fa-cog me-2"></i>
-                        Settings
                     </button>
                 </div>
             </div>
@@ -225,9 +260,32 @@
         </div>
         <div class="offcanvas-body">
             <div class="d-flex flex-column gap-3">
-                <a href="{% url 'cloud_detection:home' %}" class="text-white text-decoration-none">Dashboard</a>
-                <a href="{% url 'cloud_detection:data_history' %}" class="text-white text-decoration-none">Analytics</a>
-                <a href="{% url 'cloud_detection:about' %}" class="text-white text-decoration-none">About</a>
+                {% if user.is_authenticated %}
+                <div class="text-white-75 small mb-3">Welcome, {{ user.username }}</div>
+                <a href="{% url 'cloud_detection:home' %}" class="text-white text-decoration-none">
+                    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                </a>
+                <a href="{% url 'cloud_detection:data_history' %}" class="text-white text-decoration-none">
+                    <i class="fas fa-history me-2"></i>My Data
+                </a>
+                <a href="{% url 'cloud_detection:about' %}" class="text-white text-decoration-none">
+                    <i class="fas fa-info-circle me-2"></i>About
+                </a>
+                <hr class="border-white border-opacity-10">
+                <a href="{% url 'cloud_detection:logout' %}" class="text-white text-decoration-none">
+                    <i class="fas fa-sign-out-alt me-2"></i>Logout
+                </a>
+                {% else %}
+                <a href="{% url 'cloud_detection:login' %}" class="text-white text-decoration-none">
+                    <i class="fas fa-sign-in-alt me-2"></i>Login
+                </a>
+                <a href="{% url 'cloud_detection:signup' %}" class="text-white text-decoration-none">
+                    <i class="fas fa-user-plus me-2"></i>Sign Up
+                </a>
+                <a href="{% url 'cloud_detection:about' %}" class="text-white text-decoration-none">
+                    <i class="fas fa-info-circle me-2"></i>About
+                </a>
+                {% endif %}
             </div>
         </div>
     </div>
