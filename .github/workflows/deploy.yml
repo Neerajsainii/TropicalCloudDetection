@@ -2,8 +2,12 @@ name: Deploy to Google Compute Engine
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ main ]
+
+env:
+  PROJECT_ID: tropical-cloud-detection
+  ZONE: asia-southeast1-a
+  INSTANCE_NAME: tropical-cloud-app
 
 jobs:
   deploy:
@@ -11,105 +15,39 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v1
-      with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
-        
     - name: Setup Google Cloud CLI
-      uses: google-github-actions/setup-gcloud@v1
+      uses: google-github-actions/setup-gcloud@v2
       with:
-        project_id: tropical-cloud-detection
+        project_id: ${{ env.PROJECT_ID }}
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        export_default_credentials: true
         
-    - name: Debug - Check VM Status
+    - name: Configure gcloud
       run: |
-        echo "🔍 Checking VM status..."
-        gcloud compute instances list --filter="name=tropical-cloud-app"
-        echo "📊 VM details:"
-        gcloud compute instances describe tropical-cloud-app --zone=asia-southeast1-a --format="table(name,status,machineType,networkInterfaces[0].accessConfigs[0].natIP)"
+        gcloud config set project ${{ env.PROJECT_ID }}
+        gcloud config set compute/zone ${{ env.ZONE }}
         
     - name: Create deployment package
       run: |
         echo "📦 Creating deployment package..."
-        set -x
-        
-        # Create a clean directory for packaging
-        mkdir -p /tmp/deploy
-        cp -r . /tmp/deploy/
-        cd /tmp/deploy
-        
-        # Remove unwanted files and directories
-        rm -rf .git venv __pycache__ *.pyc .env* db.sqlite3* media staticfiles key.json gcp-github-actions*
-        find . -name "*.pyc" -delete
-        find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-        
-        # Create tar archive from clean directory
-        tar -czf /tmp/app.tar.gz .
-        mv /tmp/app.tar.gz /home/runner/work/TropicalCloudDetection/TropicalCloudDetection/
-        cd /home/runner/work/TropicalCloudDetection/TropicalCloudDetection/
-        
-        ls -la app.tar.gz
-        echo "✅ Package created successfully"
+        tar -czf app.tar.gz --exclude='.git' --exclude='venv' --exclude='__pycache__' --exclude='*.pyc' .
+        echo "✅ Package created: $(ls -lh app.tar.gz)"
         
     - name: Upload to Cloud Storage
       run: |
         echo "📤 Uploading to Cloud Storage..."
-        set -x
         gsutil cp app.tar.gz gs://tropical-cloud-detection-uploads/deployment/app.tar.gz
         echo "✅ Upload completed"
         
-    - name: Create startup script
+    - name: Create systemd service file
       run: |
-        echo "📝 Creating startup script..."
-        cat > startup.sh << 'EOF'
-        #!/bin/bash
-        set -e
-        
-        echo "🚀 Starting deployment..."
-        
-        # Download the latest code
-        gsutil cp gs://tropical-cloud-detection-uploads/deployment/app.tar.gz /tmp/app.tar.gz
-        
-        # Setup directory
-        sudo mkdir -p /opt/tropical-cloud-detection
-        cd /opt/tropical-cloud-detection
-        
-        # Extract files
-        sudo tar -xzf /tmp/app.tar.gz
-        
-        # Install system dependencies
-        sudo apt-get update
-        sudo apt-get install -y python3 python3-pip python3-venv nginx build-essential libhdf5-dev libnetcdf-dev pkg-config
-        
-        # Create virtual environment
-        sudo python3 -m venv venv
-        
-        # Install Python packages
-        source venv/bin/activate
-        sudo venv/bin/pip install -r requirements.txt
-        
-        # Run migrations
-        sudo venv/bin/python manage.py migrate
-        
-        # Collect static files
-        sudo venv/bin/python manage.py collectstatic --noinput
-        
-        # Stop existing processes and clean up
-        echo "🧹 Cleaning up existing processes..."
-        sudo pkill -f gunicorn || true
-        sudo systemctl stop tropical-cloud || true
-        sudo systemctl disable tropical-cloud || true
-        sleep 3
-        
-        # Create systemd service for reliable deployment
-        echo "🔧 Creating systemd service..."
-        sudo tee /etc/systemd/system/tropical-cloud.service > /dev/null << 'SERVICE_EOF'
+        echo "📝 Creating systemd service file..."
+        cat > tropical-cloud.service << 'EOF'
 [Unit]
 Description=Tropical Cloud Detection Application
 After=network.target
-Wants=network.target
 
 [Service]
 Type=simple
@@ -117,106 +55,127 @@ User=alwaysneerudj_gmail_com
 Group=alwaysneerudj_gmail_com
 WorkingDirectory=/opt/tropical-cloud-detection
 Environment=PATH=/opt/tropical-cloud-detection/venv/bin
-Environment=PYTHONPATH=/opt/tropical-cloud-detection
-ExecStart=/opt/tropical-cloud-detection/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --timeout 600 --log-level warning --access-logfile - --error-logfile - cloud_detection_portal.wsgi:application
+ExecStart=/opt/tropical-cloud-detection/venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --timeout 600 --log-level warning cloud_detection_portal.wsgi:application
 Restart=always
 RestartSec=5
-StandardOutput=journal
-StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-SERVICE_EOF
-
-        # Set proper permissions
-        sudo chown alwaysneerudj_gmail_com:alwaysneerudj_gmail_com /opt/tropical-cloud-detection
-        sudo chmod +x /opt/tropical-cloud-detection/venv/bin/gunicorn
+EOF
         
-        # Enable and start the service
-        echo "🚀 Starting systemd service..."
-        sudo systemctl daemon-reload
-        sudo systemctl enable tropical-cloud
-        sudo systemctl start tropical-cloud
-        
-        # Wait for service to be ready with detailed debugging
-        echo "⏳ Waiting for service to start..."
-        for i in {1..60}; do
-          echo "Check $i/60: Service status..."
-          sudo systemctl status tropical-cloud --no-pager
-          
-          if curl -s http://127.0.0.1:8000/ > /dev/null 2>&1; then
-            echo "✅ Service is responding on port 8000"
-            break
-          fi
-          
-          if [ $i -eq 60 ]; then
-            echo "❌ Service failed to start after 60 seconds"
-            echo "🔍 Debugging service failure..."
-            sudo journalctl -u tropical-cloud --no-pager -n 50
-            exit 1
-          fi
-          
-          sleep 1
-        done
-        
-        # Setup Nginx
-        sudo tee /etc/nginx/sites-available/tropical-cloud-detection > /dev/null << 'NGINX_EOF'
-server { 
-  listen 8080; 
-  server_name _; 
-  client_max_body_size 200M; 
-  
-  location /static/ { 
-    alias /opt/tropical-cloud-detection/staticfiles/; 
-    expires 1y;
-    add_header Cache-Control "public, immutable";
-  } 
-  
-  location /media/ { 
-    alias /opt/tropical-cloud-detection/media/; 
-  } 
-  
-  location / { 
-    proxy_pass http://127.0.0.1:8000; 
-    proxy_set_header Host $host; 
-    proxy_set_header X-Real-IP $remote_addr; 
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_connect_timeout 30s;
-    proxy_send_timeout 30s;
-    proxy_read_timeout 30s;
-  } 
-}
-NGINX_EOF
-        
-        sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/
-        sudo rm -f /etc/nginx/sites-enabled/default
-        sudo nginx -t && sudo systemctl restart nginx
-        
-        echo "✅ Deployment completed!"
-        
-    - name: Upload startup script
+    - name: Create nginx config file
       run: |
-        echo "📤 Uploading startup script..."
-        gsutil cp startup.sh gs://tropical-cloud-detection-uploads/deployment/startup.sh
-        echo "✅ Startup script uploaded"
+        echo "📝 Creating nginx config file..."
+        cat > tropical-cloud-nginx.conf << 'EOF'
+server {
+  listen 8080;
+  server_name _;
+  client_max_body_size 200M;
+  
+  location /static/ {
+    alias /opt/tropical-cloud-detection/staticfiles/;
+  }
+  
+  location /media/ {
+    alias /opt/tropical-cloud-detection/media/;
+  }
+  
+  location / {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+}
+EOF
         
-    - name: Execute deployment on VM
+    - name: Create startup script
+      run: |
+        echo "📝 Creating startup script..."
+        cat > startup.sh << 'EOF'
+#!/bin/bash
+set -e
+
+echo "🚀 Starting deployment..."
+
+# Download the latest code
+gsutil cp gs://tropical-cloud-detection-uploads/deployment/app.tar.gz /tmp/app.tar.gz
+
+# Setup directory
+sudo mkdir -p /opt/tropical-cloud-detection
+cd /opt/tropical-cloud-detection
+
+# Extract files
+sudo tar -xzf /tmp/app.tar.gz
+
+# Install system dependencies
+sudo apt-get update
+sudo apt-get install -y python3 python3-pip python3-venv nginx build-essential libhdf5-dev libnetcdf-dev pkg-config
+
+# Create virtual environment
+sudo python3 -m venv venv
+
+# Install Python packages
+source venv/bin/activate
+sudo venv/bin/pip install -r requirements.txt
+
+# Run migrations
+sudo venv/bin/python manage.py migrate
+
+# Collect static files
+sudo venv/bin/python manage.py collectstatic --noinput
+
+# Stop existing processes
+echo "🧹 Cleaning up existing processes..."
+sudo pkill -f gunicorn || true
+sudo systemctl stop tropical-cloud || true
+sudo systemctl disable tropical-cloud || true
+sleep 3
+
+# Copy systemd service file
+sudo cp tropical-cloud.service /etc/systemd/system/
+
+# Set permissions
+sudo chown -R alwaysneerudj_gmail_com:alwaysneerudj_gmail_com /opt/tropical-cloud-detection
+
+# Start service
+echo "🚀 Starting systemd service..."
+sudo systemctl daemon-reload
+sudo systemctl enable tropical-cloud
+sudo systemctl start tropical-cloud
+
+# Wait for service
+echo "⏳ Waiting for service to start..."
+for i in {1..30}; do
+  if curl -s http://127.0.0.1:8000/ > /dev/null 2>&1; then
+    echo "✅ Service is ready"
+    break
+  fi
+  sleep 2
+done
+
+# Setup Nginx
+echo "🔧 Setting up Nginx..."
+sudo cp tropical-cloud-nginx.conf /etc/nginx/sites-available/tropical-cloud-detection
+sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo systemctl restart nginx
+
+echo "✅ Deployment completed!"
+EOF
+        
+    - name: Upload files to Cloud Storage
+      run: |
+        echo "📤 Uploading files to Cloud Storage..."
+        gsutil cp startup.sh gs://tropical-cloud-detection-uploads/deployment/startup.sh
+        gsutil cp tropical-cloud.service gs://tropical-cloud-detection-uploads/deployment/tropical-cloud.service
+        gsutil cp tropical-cloud-nginx.conf gs://tropical-cloud-detection-uploads/deployment/tropical-cloud-nginx.conf
+        echo "✅ Files uploaded"
+        
+    - name: Execute deployment
       run: |
         echo "🚀 Executing deployment on VM..."
-        set -x
-        
-        # Download and execute startup script on VM
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="gsutil cp gs://tropical-cloud-detection-uploads/deployment/startup.sh /tmp/startup.sh && chmod +x /tmp/startup.sh && /tmp/startup.sh" || {
-          echo "❌ Deployment failed, trying alternative approach..."
-          
-          # Alternative: Use gcloud compute instances update-container
-          gcloud compute instances update-container tropical-cloud-app --zone=asia-southeast1-a --container-image=gcr.io/tropical-cloud-detection/app:latest || {
-            echo "❌ Container update also failed"
-            exit 1
-          }
-        }
-        
-        echo "✅ Deployment executed"
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="gsutil cp gs://tropical-cloud-detection-uploads/deployment/startup.sh /tmp/startup.sh && gsutil cp gs://tropical-cloud-detection-uploads/deployment/tropical-cloud.service /tmp/tropical-cloud.service && gsutil cp gs://tropical-cloud-detection-uploads/deployment/tropical-cloud-nginx.conf /tmp/tropical-cloud-nginx.conf && chmod +x /tmp/startup.sh && /tmp/startup.sh"
         
     - name: Wait for services
       run: |
@@ -225,53 +184,23 @@ NGINX_EOF
         
     - name: Test application
       run: |
-        echo "🔍 Comprehensive application testing..."
-        set -x
+        echo "🔍 Testing application..."
         EXTERNAL_IP=$(gcloud compute instances describe tropical-cloud-app --zone=asia-southeast1-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
         echo "🌐 Testing URL: http://$EXTERNAL_IP:8080/"
         
-        # Test systemd service status
-        echo "🔧 Checking systemd service status..."
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl status tropical-cloud --no-pager" || echo "Service status check failed"
-        
-        # Test Gunicorn process
-        echo "🔧 Checking Gunicorn processes..."
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="ps aux | grep gunicorn" || echo "Process check failed"
-        
-        # Test direct Gunicorn access
-        echo "🔧 Testing direct Gunicorn access..."
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="curl -s http://127.0.0.1:8000/ | head -20" || echo "Direct Gunicorn test failed"
-        
-        # Test Nginx status
-        echo "🔧 Checking Nginx status..."
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl status nginx --no-pager" || echo "Nginx status check failed"
-        
-        # Test external access
-        echo "🔧 Testing external access..."
+        # Test with detailed debugging
         curl -v -f http://$EXTERNAL_IP:8080/ || {
           echo "❌ Application test failed"
-          echo "🔍 Detailed debugging information:"
-          
-          echo "📋 Systemd service logs:"
-          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo journalctl -u tropical-cloud --no-pager -n 20" || echo "Service logs failed"
-          
-          echo "📋 Nginx error logs:"
-          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo tail -n 20 /var/log/nginx/error.log" || echo "Nginx logs failed"
-          
-          echo "📋 Nginx access logs:"
-          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo tail -n 10 /var/log/nginx/access.log" || echo "Nginx access logs failed"
-          
-          echo "📋 Process status:"
-          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="ps aux | grep -E '(gunicorn|nginx)'" || echo "Process status failed"
-          
+          echo "🔍 Checking service status:"
+          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl status tropical-cloud --no-pager" || echo "Service status failed"
+          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="ps aux | grep gunicorn" || echo "Process check failed"
           exit 1
         }
         
-        echo "✅ Application is responding successfully!"
+        echo "✅ Application is responding!"
         
     - name: Final status
       run: |
         echo "🎉 Deployment completed successfully!"
         EXTERNAL_IP=$(gcloud compute instances describe tropical-cloud-app --zone=asia-southeast1-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
         echo "🌐 Application URL: http://$EXTERNAL_IP:8080"
-        echo "📊 Logs: gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command='tail -f /opt/tropical-cloud-detection/gunicorn.log'"
