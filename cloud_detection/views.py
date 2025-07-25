@@ -180,6 +180,7 @@ def upload_large_files(request):
     """Large file upload page"""
     return render(request, 'cloud_detection/upload_large_files.html')
 
+@csrf_exempt
 def get_upload_url(request):
     """Get upload URL for large files"""
     try:
@@ -343,6 +344,7 @@ def download_result(request, data_id):
         messages.error(request, 'Data not found')
         return redirect('home')
 
+@csrf_exempt
 def api_real_time_data(request):
     """API endpoint for real-time data"""
     try:
@@ -370,6 +372,7 @@ def api_real_time_data(request):
             'error': str(e)
         }, status=500)
 
+@csrf_exempt
 def api_analytics_data(request):
     """API endpoint for analytics data"""
     try:
@@ -389,6 +392,7 @@ def api_analytics_data(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+@csrf_exempt
 def api_analytics_details(request, data_id):
     """API endpoint for detailed analytics"""
     try:
@@ -403,6 +407,7 @@ def api_analytics_details(request, data_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+@csrf_exempt
 def api_system_status(request):
     """API endpoint for system status"""
     try:
