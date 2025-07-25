@@ -24,9 +24,9 @@
                                 </div>
                             {% endif %}
                             <div class="form-text">Supported formats: .h5, .nc, .zip (max 200MB)</div>
-                        </div>
-                        
-                        <div class="mb-3">
+                </div>
+                
+                <div class="mb-3">
                             <label for="{{ form.description.id_for_label }}" class="form-label">Description (Optional)</label>
                             {{ form.description }}
                         </div>
@@ -34,7 +34,7 @@
                         <button type="submit" class="btn btn-primary" id="uploadBtn">
                             <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                             Upload and Process
-                        </button>
+                            </button>
                     </form>
                 </div>
             </div>
@@ -54,19 +54,19 @@
                         <div class="col-6">
                             <h4 class="text-success">{{ completed_files|default:"0" }}</h4>
                             <small class="text-muted">Completed</small>
-                        </div>
-                    </div>
-                </div>
             </div>
-            
+        </div>
+    </div>
+</div>
+
             <div class="card mt-3">
                 <div class="card-header">
                     <h5>Recent Activity</h5>
                 </div>
                 <div class="card-body">
-                    {% if recent_results %}
+                            {% if recent_results %}
                         <div class="list-group list-group-flush">
-                            {% for data in recent_results %}
+                                {% for data in recent_results %}
                                 <div class="list-group-item d-flex justify-content-between align-items-center">
                                     <div>
                                         <strong>{{ data.data_file.name|truncatechars:20 }}</strong>
@@ -75,9 +75,9 @@
                                     </div>
                                     <span class="badge bg-{% if data.status == 'completed' %}success{% elif data.status == 'processing' %}warning{% else %}secondary{% endif %}">
                                         {{ data.status|title }}
-                                    </span>
+                                        </span>
                                 </div>
-                            {% endfor %}
+                                {% endfor %}
                         </div>
                     {% else %}
                         <p class="text-muted">No recent activity</p>
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     form.addEventListener('submit', function(e) {
         // Show loading state
-        uploadBtn.disabled = true;
+    uploadBtn.disabled = true;
         spinner.classList.remove('d-none');
         uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
     });
