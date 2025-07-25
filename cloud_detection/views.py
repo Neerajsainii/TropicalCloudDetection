@@ -348,8 +348,14 @@ def download_result(request, data_id):
 def api_real_time_data(request):
     """API endpoint for real-time data"""
     try:
-        # Get latest data
-        latest_data = SatelliteData.objects.filter(status='completed').order_by('-upload_datetime').first()
+        # Get latest data - filter by user if authenticated
+        if request.user.is_authenticated:
+            latest_data = SatelliteData.objects.filter(
+                uploaded_by=request.user,
+                status='completed'
+            ).order_by('-upload_datetime').first()
+        else:
+            latest_data = SatelliteData.objects.filter(status='completed').order_by('-upload_datetime').first()
         
         if latest_data:
             return JsonResponse({
@@ -358,18 +364,23 @@ def api_real_time_data(request):
                     'id': latest_data.id,
                     'upload_date': latest_data.upload_datetime.isoformat(),
                     'status': latest_data.status,
-                    'description': latest_data.description
+                    'description': latest_data.description or 'No description available'
                 }
             })
         else:
             return JsonResponse({
-                'success': False,
+                'success': True,
+                'data': None,
                 'message': 'No data available'
             })
     except Exception as e:
+        import traceback
+        print(f"API Error: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': 'Internal server error',
+            'message': 'Unable to fetch data'
         }, status=500)
 
 @csrf_exempt

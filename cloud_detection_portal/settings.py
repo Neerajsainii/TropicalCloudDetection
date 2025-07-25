@@ -286,6 +286,34 @@ else:
     X_FRAME_OPTIONS = 'SAMEORIGIN'
     print("🔓 Local development - relaxed security for testing")
 
+# Cross-Origin-Opener-Policy (COOP) settings
+# For local development, use 'unsafe-none' to avoid COOP issues
+if ENVIRONMENT == 'local':
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = 'unsafe-none'
+    print("🔓 COOP: Disabled for local development")
+else:
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
+    print("🔒 COOP: Enabled for production")
+
+# Additional security headers for local development
+if ENVIRONMENT == 'local':
+    # Custom middleware to add security headers for local development
+    class LocalSecurityHeadersMiddleware:
+        def __init__(self, get_response):
+            self.get_response = get_response
+
+        def __call__(self, request):
+            response = self.get_response(request)
+            # Add COOP header for localhost
+            response['Cross-Origin-Opener-Policy'] = 'unsafe-none'
+            # Add other headers to prevent browser warnings
+            response['X-Content-Type-Options'] = 'nosniff'
+            response['X-Frame-Options'] = 'SAMEORIGIN'
+            return response
+    
+    # Add the custom middleware to the beginning of the middleware list
+    MIDDLEWARE.insert(1, 'cloud_detection_portal.settings.LocalSecurityHeadersMiddleware')
+
 # Logging configuration
 LOGGING = {
     'version': 1,
