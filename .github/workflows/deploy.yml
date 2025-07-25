@@ -60,9 +60,9 @@ jobs:
         gsutil cp app.tar.gz gs://tropical-cloud-detection-uploads/deployment/app.tar.gz
         echo "✅ Upload completed"
         
-    - name: Create startup script
+    - name: Create improved startup script
       run: |
-        echo "📝 Creating startup script..."
+        echo "📝 Creating improved startup script..."
         cat > startup.sh << 'EOF'
         #!/bin/bash
         set -e
@@ -100,8 +100,50 @@ jobs:
         sudo pkill -f gunicorn || true
         sleep 2
         
-        # Start Gunicorn and wait for it to be ready
-        nohup sudo venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --timeout 600 --log-level info cloud_detection_portal.wsgi:application > gunicorn.log 2>&1 &
+        # Create systemd service for auto-restart
+        echo "🔧 Creating systemd service..."
+        sudo tee /etc/systemd/system/tropical-cloud-detection.service > /dev/null << 'SERVICE_EOF'
+        [Unit]
+        Description=Tropical Cloud Detection Django Application
+        After=network.target
+        
+        [Service]
+        Type=exec
+        User=root
+        Group=root
+        WorkingDirectory=/opt/tropical-cloud-detection
+        Environment=PATH=/opt/tropical-cloud-detection/venv/bin
+        EnvironmentFile=/opt/tropical-cloud-detection/.env
+        ExecStart=/opt/tropical-cloud-detection/venv/bin/gunicorn \\
+            --bind 127.0.0.1:8000 \\
+            --workers 2 \\
+            --worker-class sync \\
+            --timeout 600 \\
+            --max-requests 100 \\
+            --max-requests-jitter 10 \\
+            --preload \\
+            --access-logfile /opt/tropical-cloud-detection/logs/django.log \\
+            --error-logfile /opt/tropical-cloud-detection/logs/django-error.log \\
+            cloud_detection_portal.wsgi:application
+        Restart=always
+        RestartSec=10
+        StandardOutput=journal
+        StandardError=journal
+        
+        [Install]
+        WantedBy=multi-user.target
+        SERVICE_EOF
+        
+        # Create logs directory
+        sudo mkdir -p /opt/tropical-cloud-detection/logs
+        sudo chmod 755 /opt/tropical-cloud-detection/logs
+        
+        # Reload systemd and enable service
+        sudo systemctl daemon-reload
+        sudo systemctl enable tropical-cloud-detection
+        
+        # Start the service
+        sudo systemctl start tropical-cloud-detection
         
         # Wait for Gunicorn to start
         echo "⏳ Waiting for Gunicorn to start..."
@@ -114,7 +156,9 @@ jobs:
         done
         
         # Setup Nginx
-        echo 'server { 
+        echo "🔧 Setting up Nginx..."
+        sudo tee /etc/nginx/sites-available/tropical-cloud-detection > /dev/null << 'NGINX_EOF'
+        server { 
           listen 8080; 
           server_name _; 
           client_max_body_size 200M; 
@@ -138,16 +182,33 @@ jobs:
             proxy_send_timeout 30s;
             proxy_read_timeout 30s;
           } 
-        }' | sudo tee /etc/nginx/sites-available/tropical-cloud-detection
+        }
+        NGINX_EOF
         
         sudo ln -sf /etc/nginx/sites-available/tropical-cloud-detection /etc/nginx/sites-enabled/
         sudo rm -f /etc/nginx/sites-enabled/default
         sudo nginx -t && sudo systemctl restart nginx
         
+        # Create health check script
+        sudo tee /opt/tropical-cloud-detection/health_check.sh > /dev/null << 'HEALTH_EOF'
+        #!/bin/bash
+        if ! curl -s http://127.0.0.1:8000/ > /dev/null 2>&1; then
+          echo "$(date): Health check failed, restarting service..."
+          sudo systemctl restart tropical-cloud-detection
+        fi
+        HEALTH_EOF
+        
+        sudo chmod +x /opt/tropical-cloud-detection/health_check.sh
+        
+        # Add health check to crontab
+        echo "*/5 * * * * /opt/tropical-cloud-detection/health_check.sh" | sudo crontab -
+        
         echo "✅ Deployment completed!"
+        echo "🔧 Service status:"
+        sudo systemctl status tropical-cloud-detection --no-pager
         EOF
         
-        echo "✅ Startup script created"
+        echo "✅ Improved startup script created"
         
     - name: Upload startup script
       run: |
@@ -161,14 +222,9 @@ jobs:
         set -x
         
         # Download and execute startup script on VM
-        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="gsutil cp gs://tropical-cloud-detection-uploads/deployment/startup.sh /tmp/startup.sh && chmod +x /tmp/startup.sh && /tmp/startup.sh" || {
-          echo "❌ Deployment failed, trying alternative approach..."
-          
-          # Alternative: Use gcloud compute instances update-container
-          gcloud compute instances update-container tropical-cloud-app --zone=asia-southeast1-a --container-image=gcr.io/tropical-cloud-detection/app:latest || {
-            echo "❌ Container update also failed"
-            exit 1
-          }
+        gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="gsutil cp gs://tropical-cloud-detection-uploads/deployment/startup.sh /tmp/startup.sh && chmod +x /tmp/startup.sh && sudo /tmp/startup.sh" || {
+          echo "❌ Deployment failed"
+          exit 1
         }
         
         echo "✅ Deployment executed"
@@ -189,6 +245,7 @@ jobs:
         curl -v -f http://$EXTERNAL_IP:8080/ || {
           echo "❌ Application test failed"
           echo "🔍 Checking VM status:"
+          gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="sudo systemctl status tropical-cloud-detection --no-pager" || echo "SSH failed"
           gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command="ps aux | grep gunicorn" || echo "SSH failed"
           exit 1
         }
@@ -200,4 +257,5 @@ jobs:
         echo "🎉 Deployment completed successfully!"
         EXTERNAL_IP=$(gcloud compute instances describe tropical-cloud-app --zone=asia-southeast1-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
         echo "🌐 Application URL: http://$EXTERNAL_IP:8080"
-        echo "📊 Logs: gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command='tail -f /opt/tropical-cloud-detection/gunicorn.log'"
+        echo "📊 Service logs: gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command='sudo journalctl -u tropical-cloud-detection -f'"
+        echo "🔧 Service status: gcloud compute ssh tropical-cloud-app --zone=asia-southeast1-a --command='sudo systemctl status tropical-cloud-detection'"
