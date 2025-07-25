@@ -78,6 +78,7 @@ def home(request):
     
     return render(request, 'cloud_detection/home.html', context)
 
+@csrf_exempt
 def upload_file(request):
     """Handle file upload"""
     if request.method == 'POST':
