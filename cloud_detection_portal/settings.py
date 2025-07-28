@@ -34,7 +34,7 @@ DEBUG = ENVIRONMENT == 'local'  # True for local, False for production
 # Host configuration
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='localhost,127.0.0.1,tropical-cloud-detection-1065844967286.us-central1.run.app,tropical-cloud-detection-yowzoapc2q-uc.a.run.app,8080-cs-15438411-b0b1-4166-8d53-738b145e4280.cs-asia-southeast1-kelp.cloudshell.dev',
+    default='localhost,127.0.0.1,tropical-cloud-detection-1065844967286.us-central1.run.app,tropical-cloud-detection-yowzoapc2q-uc.a.run.app,8080-cs-15438411-b0b1-4166-8d53-738b145e4280.cs-asia-southeast1-kelp.cloudshell.dev,35.247.130.75',
     cast=Csv()
 )
 print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
@@ -237,7 +237,7 @@ else:
     # Production - strict CSRF
     CSRF_TRUSTED_ORIGINS = config(
         'CSRF_TRUSTED_ORIGINS', 
-        default='https://tropical-cloud-detection-1065844967286.us-central1.run.app',
+        default='https://tropical-cloud-detection-1065844967286.us-central1.run.app,http://35.247.130.75:8080,https://35.247.130.75:8080',
         cast=Csv()
     )
     print("🔒 CSRF: Strict origins for production")
