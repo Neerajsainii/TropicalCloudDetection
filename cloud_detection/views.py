@@ -364,7 +364,7 @@ def api_real_time_data(request):
                     'id': latest_data.id,
                     'upload_date': latest_data.upload_datetime.isoformat(),
                     'status': latest_data.status,
-                    'description': latest_data.description or 'No description available'
+                    'file_name': latest_data.file_name or 'Unknown file'
                 }
             })
         else:

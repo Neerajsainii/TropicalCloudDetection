@@ -123,6 +123,70 @@
     color: #ef4444;
 }
 
+/* Grid layout fixes */
+.d-grid {
+    display: grid !important;
+}
+
+.gap-0 {
+    gap: 0 !important;
+}
+
+.gap-1 {
+    gap: 0.25rem !important;
+}
+
+.gap-2 {
+    gap: 0.5rem !important;
+}
+
+.gap-3 {
+    gap: 1rem !important;
+}
+
+.gap-4 {
+    gap: 1.5rem !important;
+}
+
+.gap-5 {
+    gap: 3rem !important;
+}
+
+/* Flexbox utilities */
+.d-flex {
+    display: flex !important;
+}
+
+.d-md-flex {
+    display: flex !important;
+}
+
+.justify-content-md-center {
+    justify-content: center !important;
+}
+
+.justify-content-center {
+    justify-content: center !important;
+}
+
+.align-items-center {
+    align-items: center !important;
+}
+
+/* Text utilities */
+.text-white-75 {
+    color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.text-white-50 {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Hover effects */
+.hover-opacity-100:hover {
+    opacity: 1 !important;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .container {
@@ -131,5 +195,107 @@
     
     .card {
         margin-bottom: 1rem;
+    }
+    
+    .d-md-flex {
+        display: none !important;
+    }
+    
+    .d-md-none {
+        display: block !important;
+    }
+    
+    .justify-content-md-center {
+        justify-content: center !important;
+    }
+    
+    .gap-4 {
+        gap: 1rem !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .d-flex {
+        flex-direction: column;
+    }
+    
+    .gap-3 {
+        gap: 0.5rem !important;
+    }
+    
+    .gap-4 {
+        gap: 0.75rem !important;
+    }
+    
+    .btn-glass {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .upload-container {
+        padding: 1rem;
+    }
+    
+    .upload-area {
+        padding: 2rem 1rem;
+    }
+}
+
+/* Additional color utilities */
+.text-cyan-400 { 
+    color: rgb(34, 211, 238) !important; 
+}
+
+.bg-cyan-400 { 
+    background-color: rgb(34, 211, 238) !important; 
+}
+
+.text-green-400 { 
+    color: rgb(74, 222, 128) !important; 
+}
+
+.bg-green-400 { 
+    background-color: rgb(74, 222, 128) !important; 
+}
+
+.text-purple { 
+    color: rgb(168, 85, 247) !important; 
+}
+
+.bg-purple { 
+    background-color: rgb(168, 85, 247) !important; 
+}
+
+/* Animation utilities */
+.animate-bounce {
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 53%, 80%, 100% {
+        transform: translate3d(0, 0, 0);
+    }
+    40%, 43% {
+        transform: translate3d(0, -30px, 0);
+    }
+    70% {
+        transform: translate3d(0, -15px, 0);
+    }
+    90% {
+        transform: translate3d(0, -4px, 0);
+    }
+}
+
+/* Live pulse animation */
+.live-pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { 
+        opacity: 1; 
+    }
+    50% { 
+        opacity: 0.5; 
     }
 } 

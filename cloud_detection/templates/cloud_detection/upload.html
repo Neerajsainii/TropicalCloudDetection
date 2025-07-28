@@ -1,341 +1,399 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tropical Cloud Detection - Upload</title>
+{% extends 'cloud_detection/base.html' %}
+
+{% block title %}Upload - Tropical Cloud Detection{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
     
-    <!-- CSRF Token for AJAX requests -->
-    <meta name="csrf-token" content="{{ csrf_token }}">
+    .upload-area {
+        border: 3px dashed rgba(255, 255, 255, 0.3);
+        border-radius: 15px;
+        padding: 3rem;
+        text-align: center;
+        margin: 2rem 0;
+        transition: all 0.3s ease;
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(12px);
+    }
     
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        .container {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        h1 {
-            text-align: center;
-            color: #2c3e50;
-            margin-bottom: 30px;
-            font-size: 2.5em;
-        }
-        .upload-area {
-            border: 3px dashed #3498db;
-            border-radius: 10px;
-            padding: 40px;
-            text-align: center;
-            margin: 20px 0;
-            transition: all 0.3s ease;
-            background: #f8f9fa;
-        }
-        .upload-area:hover {
-            border-color: #2980b9;
-            background: #e3f2fd;
-        }
-        .upload-area.dragover {
-            border-color: #27ae60;
-            background: #e8f5e8;
-        }
-        .file-input {
-            display: none;
-        }
-        .upload-btn {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 25px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background 0.3s ease;
-            margin: 10px;
-        }
-        .upload-btn:hover {
-            background: #2980b9;
-        }
-        .upload-btn:disabled {
-            background: #bdc3c7;
-            cursor: not-allowed;
-        }
-        .progress-container {
-            margin: 20px 0;
-            display: none;
-        }
-        .progress-bar {
-            width: 100%;
-            height: 20px;
-            background: #ecf0f1;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #27ae60, #2ecc71);
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-        .progress-text {
-            text-align: center;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-        .status {
-            margin: 20px 0;
-            padding: 15px;
-            border-radius: 8px;
-            display: none;
-        }
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .file-info {
-            margin: 20px 0;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            display: none;
-        }
-        .file-info h3 {
-            margin-top: 0;
-            color: #2c3e50;
-        }
-        .file-info p {
-            margin: 5px 0;
-        }
-        .size-limit {
-            background: #fff3cd;
-            color: #856404;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-            border: 1px solid #ffeaa7;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🌤️ Tropical Cloud Detection</h1>
-        <h2 style="text-align: center; color: #7f8c8d;">Upload Satellite Data Files</h2>
-        <div class="size-limit">
-            <strong>📁 File Size Limit:</strong> Up to 100MB (HDF5, NetCDF, or other satellite data formats)
-        </div>
-        <div class="upload-area" id="uploadArea">
-            <div id="uploadText">
-                <h3>📁 Drop your satellite data file here</h3>
-                <p>or</p>
-                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
-                    Choose File
-                </button>
-                <p><small>Supports: .h5, .hdf5, .nc, .netcdf files</small></p>
-            </div>
-        </div>
-        <input type="file" id="fileInput" class="file-input" accept=".h5,.hdf5,.nc,.netcdf" onchange="handleFileSelect(event)">
-        <div class="file-info" id="fileInfo">
-            <h3>📋 File Information</h3>
-            <p><strong>Name:</strong> <span id="fileName"></span></p>
-            <p><strong>Size:</strong> <span id="fileSize"></span></p>
-            <p><strong>Type:</strong> <span id="fileType"></span></p>
-        </div>
-        <div class="progress-container" id="progressContainer">
-            <h3>📤 Uploading to Google Cloud Storage...</h3>
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressFill"></div>
-            </div>
-            <div class="progress-text" id="progressText">0%</div>
-        </div>
-        <div class="status" id="status"></div>
-        <div style="text-align: center; margin-top: 30px;">
-            <button class="upload-btn" id="uploadBtn" onclick="uploadFile()" disabled>
-                🚀 Start Upload
+    .upload-area:hover {
+        border-color: rgba(255, 255, 255, 0.5);
+        background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .upload-area.dragover {
+        border-color: #06b6d4;
+        background: rgba(6, 182, 212, 0.1);
+    }
+    
+    .file-input {
+        display: none;
+    }
+    
+    .upload-btn {
+        background: linear-gradient(135deg, #3b82f6, #06b6d4);
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 25px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin: 10px;
+        backdrop-filter: blur(12px);
+    }
+    
+    .upload-btn:hover {
+        background: linear-gradient(135deg, #2563eb, #0891b2);
+        color: white;
+        transform: translateY(-2px);
+    }
+    
+    .upload-btn:disabled {
+        background: rgba(255, 255, 255, 0.2);
+        cursor: not-allowed;
+        transform: none;
+    }
+    
+    .progress-container {
+        margin: 2rem 0;
+        display: none;
+    }
+    
+    .progress-bar {
+        width: 100%;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        overflow: hidden;
+        backdrop-filter: blur(12px);
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #10b981, #06b6d4);
+        width: 0%;
+        transition: width 0.3s ease;
+    }
+    
+    .progress-text {
+        text-align: center;
+        margin-top: 10px;
+        font-weight: bold;
+        color: white;
+    }
+    
+    .status {
+        margin: 2rem 0;
+        padding: 1rem;
+        border-radius: 8px;
+        display: none;
+        backdrop-filter: blur(12px);
+    }
+    
+    .status.success {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    
+    .status.error {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    
+    .file-info {
+        margin: 2rem 0;
+        padding: 1.5rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 15px;
+        display: none;
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .file-info h3 {
+        margin-top: 0;
+        color: white;
+    }
+    
+    .file-info p {
+        margin: 0.5rem 0;
+        color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .size-limit {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        backdrop-filter: blur(12px);
+    }
+    
+    .upload-title {
+        color: white;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    
+    .upload-subtitle {
+        color: rgba(255, 255, 255, 0.7);
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="upload-container">
+    <div class="text-center mb-4">
+        <h1 class="upload-title">🌤️ Tropical Cloud Detection</h1>
+        <h2 class="upload-subtitle">Upload Satellite Data Files</h2>
+    </div>
+    
+    <div class="size-limit">
+        <strong>📁 File Size Limit:</strong> Up to 100MB (HDF5, NetCDF, or other satellite data formats)
+    </div>
+    
+    <div class="upload-area" id="uploadArea">
+        <div id="uploadText">
+            <h3 class="text-white mb-3">📁 Drop your satellite data file here</h3>
+            <p class="text-white-75 mb-3">or</p>
+            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                Choose File
             </button>
+            <p class="text-white-75 mt-3"><small>Supports: .h5, .hdf5, .nc, .netcdf files</small></p>
         </div>
     </div>
-    <script>
-        let selectedFile = null;
-        const maxFileSize = 100 * 1024 * 1024; // 100MB
+    
+    <input type="file" id="fileInput" class="file-input" accept=".h5,.hdf5,.nc,.netcdf" onchange="handleFileSelect(event)">
+    
+    <div class="file-info" id="fileInfo">
+        <h3>📋 File Information</h3>
+        <p><strong>Name:</strong> <span id="fileName"></span></p>
+        <p><strong>Size:</strong> <span id="fileSize"></span></p>
+        <p><strong>Type:</strong> <span id="fileType"></span></p>
+    </div>
+    
+    <div class="progress-container" id="progressContainer">
+        <h3 class="text-white mb-3">📤 Uploading to Google Cloud Storage...</h3>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-text" id="progressText">0%</div>
+    </div>
+    
+    <div class="status" id="status"></div>
+    
+    <div class="text-center mt-4">
+        <button class="upload-btn" id="uploadBtn" onclick="uploadFile()" disabled>
+            🚀 Start Upload
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let selectedFile = null;
+    const maxFileSize = 100 * 1024 * 1024; // 100MB
+    
+    // Get CSRF token for AJAX requests
+    function getCSRFToken() {
+        return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    }
+    
+    // Drag and drop functionality
+    const uploadArea = document.getElementById('uploadArea');
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+    
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+            handleFile(file);
+        }
+    }
+    
+    function handleFile(file) {
+        // Check file size
+        if (file.size > maxFileSize) {
+            showStatus(`❌ File size ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds the 100MB limit`, 'error');
+            return;
+        }
         
-        // Get CSRF token for AJAX requests
-        function getCSRFToken() {
-            return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        // Check file type
+        const allowedTypes = ['.h5', '.hdf5', '.nc', '.netcdf'];
+        const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+        if (!allowedTypes.includes(fileExtension)) {
+            showStatus(`❌ File type ${fileExtension} is not supported. Please use HDF5 or NetCDF files.`, 'error');
+            return;
         }
-        // Drag and drop functionality
-        const uploadArea = document.getElementById('uploadArea');
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFile(files[0]);
-            }
-        });
-        function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (file) {
-                handleFile(file);
-            }
+        
+        selectedFile = file;
+        displayFileInfo(file);
+        document.getElementById('uploadBtn').disabled = false;
+        showStatus('✅ File selected and ready for upload!', 'success');
+    }
+    
+    function displayFileInfo(file) {
+        const fileInfo = document.getElementById('fileInfo');
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileSize').textContent = formatFileSize(file.size);
+        document.getElementById('fileType').textContent = file.type || 'Unknown';
+        fileInfo.style.display = 'block';
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    async function uploadFile() {
+        if (!selectedFile) {
+            showStatus('❌ Please select a file first', 'error');
+            return;
         }
-        function handleFile(file) {
-            // Check file size
-            if (file.size > maxFileSize) {
-                showStatus(`❌ File size ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds the 100MB limit`, 'error');
-                return;
-            }
-            // Check file type
-            const allowedTypes = ['.h5', '.hdf5', '.nc', '.netcdf'];
-            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-            if (!allowedTypes.includes(fileExtension)) {
-                showStatus(`❌ File type ${fileExtension} is not supported. Please use HDF5 or NetCDF files.`, 'error');
-                return;
-            }
-            selectedFile = file;
-            displayFileInfo(file);
-            document.getElementById('uploadBtn').disabled = false;
-            showStatus('✅ File selected and ready for upload!', 'success');
-        }
-        function displayFileInfo(file) {
-            const fileInfo = document.getElementById('fileInfo');
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('fileSize').textContent = formatFileSize(file.size);
-            document.getElementById('fileType').textContent = file.type || 'Unknown';
-            fileInfo.style.display = 'block';
-        }
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-        async function uploadFile() {
-            if (!selectedFile) {
-                showStatus('❌ Please select a file first', 'error');
-                return;
-            }
-            const uploadBtn = document.getElementById('uploadBtn');
-            const progressContainer = document.getElementById('progressContainer');
-            const progressFill = document.getElementById('progressFill');
-            const progressText = document.getElementById('progressText');
-            uploadBtn.disabled = true;
-            progressContainer.style.display = 'block';
-            showStatus('🔄 Getting upload URL...', 'success');
-            try {
-                // Step 1: Get signed URL from server
-                const response = await fetch('/get-upload-url/', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error('Failed to get upload URL');
+        
+        const uploadBtn = document.getElementById('uploadBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        
+        uploadBtn.disabled = true;
+        progressContainer.style.display = 'block';
+        showStatus('🔄 Getting upload URL...', 'success');
+        
+        try {
+            // Step 1: Get signed URL from server
+            const response = await fetch('/get-upload-url/', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
                 }
-                const data = await response.json();
-                
-                // Check if upload_url is available
-                if (!data.upload_url) {
-                    throw new Error(data.message || 'Failed to get upload URL. Please use the regular upload form for files under 32MB.');
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to get upload URL');
+            }
+            
+            const data = await response.json();
+            
+            // Check if upload_url is available
+            if (!data.upload_url) {
+                throw new Error(data.message || 'Failed to get upload URL. Please use the regular upload form for files under 32MB.');
+            }
+            
+            const { upload_url, filename, bucket_name } = data;
+            showStatus('📤 Uploading to Google Cloud Storage...', 'success');
+            
+            // Step 2: Upload file directly to GCS
+            const xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = (event.loaded / event.total) * 100;
+                    progressFill.style.width = percentComplete + '%';
+                    progressText.textContent = percentComplete.toFixed(1) + '%';
                 }
-                
-                const { upload_url, filename, bucket_name } = data;
-                showStatus('📤 Uploading to Google Cloud Storage...', 'success');
-                // Step 2: Upload file directly to GCS
-                const xhr = new XMLHttpRequest();
-                xhr.upload.addEventListener('progress', (event) => {
-                    if (event.lengthComputable) {
-                        const percentComplete = (event.loaded / event.total) * 100;
-                        progressFill.style.width = percentComplete + '%';
-                        progressText.textContent = percentComplete.toFixed(1) + '%';
-                    }
-                });
-                xhr.addEventListener('load', async () => {
-                    if (xhr.status === 200) {
-                        showStatus('✅ File uploaded to Google Cloud Storage!', 'success');
-                        // Step 3: Notify backend about the uploaded file
-                        try {
-                            const formData = new FormData();
-                            formData.append('file_name', selectedFile.name);
-                            formData.append('file_path', filename);
-                            formData.append('file_size', selectedFile.size);
-                            formData.append('upload_source', 'gcs');
-                            formData.append('gcs_bucket', bucket_name);
-                            formData.append('gcs_path', filename);
-                            const dbResponse = await fetch('/upload/', {
-                                method: 'POST',
-                                headers: {
-                                    'X-CSRFToken': getCSRFToken(),
-                                },
-                                body: formData
-                            });
-                            if (dbResponse.ok) {
-                                const result = await dbResponse.json();
-                                showStatus('🎉 Upload complete! Processing started.', 'success');
-                                console.log('Upload result:', result);
-                                // Reset form
-                                setTimeout(() => {
-                                    resetForm();
-                                }, 3000);
-                            } else {
-                                throw new Error('Failed to create database record');
-                            }
-                        } catch (error) {
-                            showStatus(`❌ Error: ${error.message}`, 'error');
+            });
+            
+            xhr.addEventListener('load', async () => {
+                if (xhr.status === 200) {
+                    showStatus('✅ File uploaded to Google Cloud Storage!', 'success');
+                    
+                    // Step 3: Notify backend about the uploaded file
+                    try {
+                        const formData = new FormData();
+                        formData.append('file_name', selectedFile.name);
+                        formData.append('file_path', filename);
+                        formData.append('file_size', selectedFile.size);
+                        formData.append('upload_source', 'gcs');
+                        formData.append('gcs_bucket', bucket_name);
+                        formData.append('gcs_path', filename);
+                        
+                        const dbResponse = await fetch('/upload/', {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': getCSRFToken(),
+                            },
+                            body: formData
+                        });
+                        
+                        if (dbResponse.ok) {
+                            const result = await dbResponse.json();
+                            showStatus('🎉 Upload complete! Processing started.', 'success');
+                            console.log('Upload result:', result);
+                            
+                            // Reset form
+                            setTimeout(() => {
+                                resetForm();
+                            }, 3000);
+                        } else {
+                            throw new Error('Failed to create database record');
                         }
-                    } else {
-                        showStatus(`❌ Upload failed with status: ${xhr.status}`, 'error');
+                    } catch (error) {
+                        showStatus(`❌ Error: ${error.message}`, 'error');
                     }
-                });
-                xhr.addEventListener('error', () => {
-                    showStatus('❌ Upload failed', 'error');
-                });
-                xhr.open('PUT', upload_url);
-                xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-                xhr.send(selectedFile);
-            } catch (error) {
-                showStatus(`❌ Error: ${error.message}`, 'error');
-                uploadBtn.disabled = false;
-            }
+                } else {
+                    showStatus(`❌ Upload failed with status: ${xhr.status}`, 'error');
+                }
+            });
+            
+            xhr.addEventListener('error', () => {
+                showStatus('❌ Upload failed', 'error');
+            });
+            
+            xhr.open('PUT', upload_url);
+            xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+            xhr.send(selectedFile);
+            
+        } catch (error) {
+            showStatus(`❌ Error: ${error.message}`, 'error');
+            uploadBtn.disabled = false;
         }
-        function showStatus(message, type) {
-            const status = document.getElementById('status');
-            status.textContent = message;
-            status.className = `status ${type}`;
-            status.style.display = 'block';
-        }
-        function resetForm() {
-            selectedFile = null;
-            document.getElementById('fileInput').value = '';
-            document.getElementById('fileInfo').style.display = 'none';
-            document.getElementById('progressContainer').style.display = 'none';
-            document.getElementById('uploadBtn').disabled = true;
-            document.getElementById('status').style.display = 'none';
-            document.getElementById('progressFill').style.width = '0%';
-            document.getElementById('progressText').textContent = '0%';
-        }
-    </script>
-</body>
-</html> 
+    }
+    
+    function showStatus(message, type) {
+        const status = document.getElementById('status');
+        status.textContent = message;
+        status.className = `status ${type}`;
+        status.style.display = 'block';
+    }
+    
+    function resetForm() {
+        selectedFile = null;
+        document.getElementById('fileInput').value = '';
+        document.getElementById('fileInfo').style.display = 'none';
+        document.getElementById('progressContainer').style.display = 'none';
+        document.getElementById('uploadBtn').disabled = true;
+        document.getElementById('status').style.display = 'none';
+        document.getElementById('progressFill').style.width = '0%';
+        document.getElementById('progressText').textContent = '0%';
+    }
+</script>
+{% endblock %} 

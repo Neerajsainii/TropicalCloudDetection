@@ -166,6 +166,11 @@
         
         /* Pointer events */
         .pe-none { pointer-events: none !important; }
+
+        /* New styles for hover effect */
+        .hover-opacity-100 {
+            opacity: 1 !important;
+        }
     </style>
     
     {% block extra_css %}{% endblock %}
@@ -177,17 +182,17 @@
     <!-- Header -->
     <header class="position-relative card-glass border-bottom border-white border-opacity-10" style="z-index: 50;">
         <div class="container-fluid" style="max-width: 1280px;">
-            <div class="d-flex align-items-center justify-content-between" style="height: 4rem;">
+            <div class="d-flex align-items-center justify-content-between py-2">
                 <!-- Logo -->
-                <div class="d-flex align-items-center gap-4">
+                <div class="d-flex align-items-center gap-3">
                     <div class="d-flex align-items-center gap-2">
-                        <div class="relative">
-                            <i class="fas fa-satellite text-cyan-400 text-2xl"></i>
-                            <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full live-pulse"></div>
+                        <div class="position-relative">
+                            <i class="fas fa-satellite text-cyan-400 fs-4"></i>
+                            <div class="position-absolute top-0 start-100 translate-middle w-2 h-2 bg-green-400 rounded-circle live-pulse"></div>
                         </div>
                         <div>
-                            <h1 class="text-xl font-bold text-white">TropicalSat</h1>
-                            <p class="text-xs text-cyan-300">Cloud Detection System</p>
+                            <h1 class="h4 fw-bold text-white mb-0">TropicalSat</h1>
+                            <p class="text-xs text-cyan-300 mb-0">Cloud Detection System</p>
                         </div>
                     </div>
                 </div>
@@ -195,19 +200,19 @@
                 <!-- Navigation -->
                 {% if user.is_authenticated %}
                 <nav class="d-none d-md-flex align-items-center gap-4">
-                    <a href="{% url 'cloud_detection:home' %}" class="text-white text-opacity-75 text-decoration-none">Dashboard</a>
-                    <a href="{% url 'cloud_detection:data_history' %}" class="text-white text-opacity-75 text-decoration-none">My Data</a>
-                    <a href="{% url 'cloud_detection:about' %}" class="text-white text-opacity-75 text-decoration-none">About</a>
+                    <a href="{% url 'cloud_detection:home' %}" class="text-white text-opacity-75 text-decoration-none hover-opacity-100">Dashboard</a>
+                    <a href="{% url 'cloud_detection:data_history' %}" class="text-white text-opacity-75 text-decoration-none hover-opacity-100">My Data</a>
+                    <a href="{% url 'cloud_detection:about' %}" class="text-white text-opacity-75 text-decoration-none hover-opacity-100">About</a>
                 </nav>
                 {% else %}
                 <nav class="d-none d-md-flex align-items-center gap-4">
-                    <a href="{% url 'cloud_detection:about' %}" class="text-white text-opacity-75 text-decoration-none">About</a>
+                    <a href="{% url 'cloud_detection:about' %}" class="text-white text-opacity-75 text-decoration-none hover-opacity-100">About</a>
                 </nav>
                 {% endif %}
                 
                 <!-- Status and Menu -->
                 <div class="d-flex align-items-center gap-3">
-                    <div class="d-flex align-items-center gap-2 small">
+                    <div class="d-flex align-items-center gap-2 small d-none d-sm-flex">
                         <div class="w-2 h-2 bg-success rounded-circle live-pulse"></div>
                         <span class="text-success">Live</span>
                     </div>
@@ -217,7 +222,7 @@
                     <div class="dropdown">
                         <button class="btn-glass btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-user me-2"></i>
-                            {{ user.username }}
+                            <span class="d-none d-sm-inline">{{ user.username }}</span>
                         </button>
                         <ul class="dropdown-menu card-glass border border-white border-opacity-10">
                             <li><span class="dropdown-item-text text-white-75 small">Welcome, {{ user.username }}</span></li>
@@ -236,12 +241,16 @@
                     </div>
                     {% else %}
                     <!-- Login/Signup Buttons -->
-                    <a href="{% url 'cloud_detection:login' %}" class="btn-glass btn btn-sm">
-                        <i class="fas fa-sign-in-alt me-2"></i>Login
-                    </a>
-                    <a href="{% url 'cloud_detection:signup' %}" class="btn btn-sm" style="background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none;">
-                        <i class="fas fa-user-plus me-2"></i>Sign Up
-                    </a>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'cloud_detection:login' %}" class="btn-glass btn btn-sm">
+                            <i class="fas fa-sign-in-alt me-1 d-sm-inline"></i>
+                            <span class="d-none d-sm-inline">Login</span>
+                        </a>
+                        <a href="{% url 'cloud_detection:signup' %}" class="btn btn-sm" style="background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none;">
+                            <i class="fas fa-user-plus me-1 d-sm-inline"></i>
+                            <span class="d-none d-sm-inline">Sign Up</span>
+                        </a>
+                    </div>
                     {% endif %}
                     
                     <button class="btn-glass btn btn-sm d-md-none" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu">
