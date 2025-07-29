@@ -235,12 +235,25 @@ if ENVIRONMENT == 'local':
     print("🔓 CSRF: All local origins trusted for development")
 else:
     # Production - strict CSRF
-    CSRF_TRUSTED_ORIGINS = config(
-        'CSRF_TRUSTED_ORIGINS', 
-        default='https://tropical-cloud-detection-1065844967286.us-central1.run.app,http://35.247.130.75:8080,https://35.247.130.75:8080',
-        cast=Csv()
-    )
-    print("🔒 CSRF: Strict origins for production")
+    # Get the configured CSRF trusted origins or use default
+    configured_csrf_origins = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+    
+    # Always include the production server IP regardless of environment variable
+    default_production_origins = [
+        'https://tropical-cloud-detection-1065844967286.us-central1.run.app',
+        'http://35.247.130.75:8080',
+        'https://35.247.130.75:8080',
+    ]
+    
+    # Combine configured origins with default production origins
+    if configured_csrf_origins:
+        CSRF_TRUSTED_ORIGINS = list(set(configured_csrf_origins + default_production_origins))
+    else:
+        CSRF_TRUSTED_ORIGINS = default_production_origins
+    
+    print(f"🔒 CSRF: Trusted origins for production: {CSRF_TRUSTED_ORIGINS}")
+    print(f"🔒 CSRF: Environment variable value: {configured_csrf_origins}")
+    print(f"🔒 CSRF: Final trusted origins: {CSRF_TRUSTED_ORIGINS}")
 
 # REST Framework settings
 REST_FRAMEWORK = {
@@ -259,7 +272,7 @@ REST_FRAMEWORK = {
 
 # Security settings based on environment
 if ENVIRONMENT == 'production':
-    # Production security settings
+    # Production security settings - modified for HTTP server
     SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_HSTS_SECONDS = 31536000  # 1 year
@@ -267,12 +280,12 @@ if ENVIRONMENT == 'production':
     SECURE_HSTS_PRELOAD = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_BROWSER_XSS_FILTER = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = False  # Changed to False for HTTP
+    CSRF_COOKIE_SECURE = False     # Changed to False for HTTP
     
     # Additional security headers
-    X_FRAME_OPTIONS = 'DENY'
-    print("🔒 Production security settings enabled")
+    X_FRAME_OPTIONS = 'SAMEORIGIN'  # Changed from 'DENY' for better compatibility
+    print("🔒 Production security settings enabled (HTTP compatible)")
 else:
     # Local development - relaxed security for easier testing
     SECURE_SSL_REDIRECT = False

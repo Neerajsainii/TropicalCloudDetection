@@ -26,6 +26,7 @@ import traceback
 
 logger = logging.getLogger(__name__)
 
+@csrf_exempt
 def signup_view(request):
     """User registration view"""
     if request.method == 'POST':
@@ -41,9 +42,9 @@ def signup_view(request):
                     messages.error(request, f'{field}: {error}')
     else:
         form = UserCreationForm()
-    
     return render(request, 'cloud_detection/signup.html', {'form': form})
 
+@csrf_exempt
 def login_view(request):
     """User login view"""
     if request.method == 'POST':
