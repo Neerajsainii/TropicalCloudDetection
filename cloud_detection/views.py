@@ -73,6 +73,7 @@ def landing_view(request):
         return redirect('cloud_detection:home')
     return render(request, 'cloud_detection/landing.html')
 
+@csrf_exempt
 @login_required
 def home(request):
     """Home page view"""
@@ -131,6 +132,7 @@ def home(request):
     
     return render(request, 'cloud_detection/home.html', context)
 
+@csrf_exempt
 @login_required
 def upload_file(request):
     """Handle file upload"""
@@ -176,6 +178,7 @@ def upload_file(request):
     
     return render(request, 'cloud_detection/home.html', {'form': form})
 
+@csrf_exempt
 @login_required
 def upload_large_files(request):
     """Large file upload page"""
@@ -200,6 +203,7 @@ def get_upload_url(request):
             'error': str(e)
         })
 
+@csrf_exempt
 def process_upload(request):
     """Process uploaded file"""
     if request.method == 'POST':
@@ -280,6 +284,7 @@ def processing_status(request, data_id):
     except SatelliteData.DoesNotExist:
         return JsonResponse({'error': 'Data not found'}, status=404)
 
+@csrf_exempt
 def retry_processing(request, data_id):
     """Retry processing"""
     try:
@@ -314,6 +319,7 @@ def download_file(request, data_id, file_type):
         messages.error(request, f'Error downloading file: {str(e)}')
         return redirect('cloud_detection:home')
 
+@csrf_exempt
 @login_required
 def delete_data(request, data_id):
     """Delete data"""
