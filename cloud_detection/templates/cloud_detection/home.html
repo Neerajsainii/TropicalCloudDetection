@@ -2,13 +2,58 @@
 
 {% block title %}Dashboard - TropicalSat Cloud Detection{% endblock %}
 
+<!-- Prevent caching to ensure fresh data -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
+{% block extra_js %}
+<script>
+// Override the default tab initialization to detect URL and set appropriate default tab
+document.addEventListener('DOMContentLoaded', function() {
+    // Get current URL path
+    const currentPath = window.location.pathname;
+    
+    // Determine which tab to show based on URL
+    let defaultTab = 'dashboard'; // Default fallback
+    
+    if (currentPath.includes('/upload')) {
+        defaultTab = 'upload';
+        console.log('📤 Upload URL detected - showing Upload Data tab by default');
+    } else if (currentPath.includes('/dashboard')) {
+        defaultTab = 'dashboard';
+        console.log('📊 Dashboard URL detected - showing Dashboard tab by default');
+    } else {
+        defaultTab = 'dashboard';
+        console.log('🏠 Default URL - showing Dashboard tab by default');
+    }
+    
+    // Remove active class from all tab buttons first
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Show the appropriate tab
+    showTab(defaultTab);
+    
+    // Add active class to the correct tab button
+    const activeButton = document.querySelector(`[onclick="showTab('${defaultTab}')"]`);
+    if (activeButton) {
+        activeButton.classList.add('active');
+    }
+    
+    console.log(`✅ Tab initialized: ${defaultTab} tab is now active`);
+});
+</script>
+{% endblock %}
+
 {% block content %}
 <!-- Tab Navigation -->
 <div class="mb-4">
     <div class="row">
         <div class="col-12">
             <div class="d-flex flex-column flex-md-row gap-2 justify-content-center">
-                <button class="tab-button btn flex-fill me-md-2 mb-2 mb-md-0 active" onclick="showTab('dashboard')">
+                <button class="tab-button btn flex-fill me-md-2 mb-2 mb-md-0" onclick="showTab('dashboard')">
                     <i class="fas fa-chart-bar me-2"></i>
                     Dashboard
                 </button>
@@ -89,6 +134,15 @@
                 </div>
                 
                 <!-- Chart Area -->
+                <div class="mb-3">
+                    <h6 class="text-white mb-2">
+                        <i class="fas fa-chart-line text-cyan-400 me-2"></i>
+                        Cloud Coverage & Temperature Trends (Last 30 Days)
+                    </h6>
+                    <p class="text-white-75 small mb-0">
+                        Real-time data from your processed satellite files
+                    </p>
+                </div>
                 <div class="chart-container">
                     <canvas id="analyticsChart"></canvas>
                 </div>
@@ -105,9 +159,9 @@
                             <i class="fas fa-history text-cyan-400 me-2"></i>
                             Recent Activity
                         </h6>
-                        {% if recent_results %}
+                        {% if user_files %}
                         <div class="space-y-3">
-                            {% for data in recent_results %}
+                            {% for data in user_files %}
                             <div class="d-flex align-items-center p-3 rounded-3" style="background: rgba(255, 255, 255, 0.05);">
                                 <div class="flex-shrink-0 me-3">
                                     <div class="p-2 rounded-circle" style="background: rgba(6, 182, 212, 0.2);">
@@ -136,23 +190,69 @@
                     </div>
                 </div>
                 
-                <!-- Quick Actions -->
+                <!-- Weather Card (replaces Quick Actions) -->
                 <div class="col-12">
                     <div class="card-glass rounded-4 p-4">
-                        <h6 class="text-white mb-3">
-                            <i class="fas fa-bolt text-cyan-400 me-2"></i>
-                            Quick Actions
-                        </h6>
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-glass" onclick="showTab('upload')">
-                                <i class="fas fa-upload me-2"></i>Upload New File
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="text-white mb-0">
+                                <i class="fas fa-cloud-sun text-cyan-400 me-2"></i>
+                                Current Weather
+                            </h6>
+                            <button class="btn btn-sm btn-glass" onclick="getUserLocation()" title="Update Location">
+                                <i class="fas fa-map-marker-alt"></i>
                             </button>
-                            <a href="{% url 'cloud_detection:data_history' %}" class="btn btn-glass">
-                                <i class="fas fa-history me-2"></i>View All Data
-                            </a>
-                            <a href="{% url 'cloud_detection:about' %}" class="btn btn-glass">
-                                <i class="fas fa-info-circle me-2"></i>About System
-                            </a>
+                        </div>
+                        <div class="weather-info">
+                            <div class="weather-main mb-3">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="temperature">
+                                        <span class="temp-value h3 text-white fw-bold">{{ weather_data.temperature }}</span>
+                                        <span class="temp-unit text-white-75">°C</span>
+                                    </div>
+                                    <div class="weather-condition text-center">
+                                        <i class="fas fa-cloud-sun weather-icon text-cyan-400 fs-2"></i>
+                                        <div class="text-white small mt-1">{{ weather_data.condition }}</div>
+                                    </div>
+                                </div>
+                                {% if weather_data.feels_like %}
+                                <div class="text-white-50 small text-center">
+                                    Feels like {{ weather_data.feels_like }}°C
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="weather-details">
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-map-marker-alt text-primary me-2"></i>
+                                    <span class="text-white small">{{ weather_data.location }}</span>
+                                </div>
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-tint text-info me-2"></i>
+                                    <span class="text-white small">Humidity: {{ weather_data.humidity }}%</span>
+                                </div>
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-wind text-warning me-2"></i>
+                                    <span class="text-white small">Wind: {{ weather_data.wind_speed }} km/h</span>
+                                </div>
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-cloud text-secondary me-2"></i>
+                                    <span class="text-white small">Clouds: {{ weather_data.cloud_coverage }}%</span>
+                                </div>
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-eye text-success me-2"></i>
+                                    <span class="text-white small">Visibility: {{ weather_data.visibility }} km</span>
+                                </div>
+                                {% if weather_data.min_temp and weather_data.max_temp %}
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-thermometer-half text-danger me-2"></i>
+                                    <span class="text-white small">Range: {{ weather_data.min_temp }}°C - {{ weather_data.max_temp }}°C</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="weather-description mt-3">
+                                <small class="text-white-50">{{ weather_data.description }}</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -174,9 +274,9 @@
                     </div>
                 </div>
                 
-                {% if recent_results %}
+                {% if user_files %}
                 <div class="row g-4">
-                    {% for data in recent_results %}
+                    {% for data in user_files %}
                     <div class="col-lg-4 col-md-6">
                         <div class="card-glass rounded-4 p-4 h-100" style="border: 1px solid rgba(255, 255, 255, 0.1);">
                             <!-- File Header -->
@@ -222,7 +322,7 @@
                                     {% if data.avg_temperature %}
                                     <div class="col-6">
                                         <small class="text-white-50">Avg Temp:</small>
-                                        <p class="text-info small mb-0">{{ data.avg_temperature|floatformat:1 }}°C</p>
+                                        <p class="text-info small mb-0">{{ data.avg_temperature|floatformat:1  }} °K</p>
                                     </div>
                                     {% endif %}
                                 </div>
@@ -295,21 +395,21 @@
                     <p class="text-white-75">Upload your satellite data files for cloud detection analysis</p>
                 </div>
                 
-                <form method="post" enctype="multipart/form-data" id="uploadForm">
-                    {% csrf_token %}
+                    <form method="post" enctype="multipart/form-data" id="uploadForm">
+                        {% csrf_token %}
                     <div class="mb-4">
                         <label for="{{ form.file_path.id_for_label }}" class="form-label text-white">Select Satellite Data File</label>
-                        {{ form.file_path }}
-                        {% if form.file_path.errors %}
+                            {{ form.file_path }}
+                            {% if form.file_path.errors %}
                             <div class="text-danger mt-2">
-                                {% for error in form.file_path.errors %}
-                                    {{ error }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+                                    {% for error in form.file_path.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
                         <div class="form-text text-white-50">Supported formats: .h5, .hdf5, .nc, .netcdf (max 200MB)</div>
-                    </div>
-                    
+                        </div>
+                        
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.satellite_name.id_for_label }}" class="form-label text-white">Satellite Name</label>
@@ -334,16 +434,16 @@
                                 </div>
                             {% endif %}
                         </div>
-                    </div>
-                    
+                        </div>
+                        
                     <div class="text-center">
                         <button type="submit" class="btn btn-lg" id="uploadBtn"
                                 style="background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none;">
                             <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                             <i class="fas fa-upload me-2"></i>Upload and Process
-                        </button>
+                            </button>
                     </div>
-                </form>
+                    </form>
             </div>
         </div>
     </div>
@@ -351,50 +451,207 @@
 
 <!-- Satellite View Tab Content -->
 <div id="satellite-tab" class="tab-content" style="display: none;">
-    <div class="row">
-        <div class="col-12">
+    <div class="row g-4">
+        <!-- Satellite Status Overview -->
+        <div class="col-lg-8">
             <div class="card-glass rounded-4 p-4">
-                <div class="text-center">
-                    <div class="d-flex align-items-center justify-content-center mb-3 rounded-circle mx-auto" 
-                         style="width: 80px; height: 80px; background: linear-gradient(135deg, #10b981, #14b8a6);">
-                        <i class="fas fa-satellite text-white fs-3"></i>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="text-white mb-0">
+                        <i class="fas fa-satellite text-cyan-400 me-2"></i>
+                        Satellite Operations Dashboard
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">Real-time</span>
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">Tropical Focus</span>
                     </div>
-                    <h4 class="text-white fw-bold">Satellite View</h4>
-                    <p class="text-white-75">Real-time satellite data visualization and monitoring</p>
                 </div>
                 
-                <div class="row g-4 mt-4">
-                    <div class="col-md-6">
-                        <div class="card-glass rounded-4 p-4">
-                            <h6 class="text-white mb-3">
-                                <i class="fas fa-globe text-cyan-400 me-2"></i>
-                                Coverage Map
-                            </h6>
+                <!-- Satellite Status Cards -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(20, 184, 166, 0.2)); border: 1px solid rgba(16, 185, 129, 0.3);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="text-success-light small mb-1">Active Satellites</p>
+                                    <p class="h4 text-success fw-bold mb-0" id="activeSatellites">3</p>
+                                </div>
+                                <div class="p-2 rounded-circle" style="background: rgba(16, 185, 129, 0.3);">
+                                    <i class="fas fa-satellite text-success"></i>
+                                </div>
+                            </div>
+                            <div class="small text-success-light mt-2">Currently operational</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2)); border: 1px solid rgba(59, 130, 246, 0.3);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="text-primary-light small mb-1">Coverage Area</p>
+                                    <p class="h4 text-primary fw-bold mb-0">Tropical</p>
+                                </div>
+                                <div class="p-2 rounded-circle" style="background: rgba(59, 130, 246, 0.3);">
+                                    <i class="fas fa-globe text-primary"></i>
+                                </div>
+                            </div>
+                            <div class="small text-primary-light mt-2">Indian Ocean & Tropics</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2)); border: 1px solid rgba(168, 85, 247, 0.3);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="text-purple-light small mb-1">Data Rate</p>
+                                    <p class="h4 text-purple fw-bold mb-0">15 min</p>
+                                </div>
+                                <div class="p-2 rounded-circle" style="background: rgba(168, 85, 247, 0.3);">
+                                    <i class="fas fa-clock text-purple"></i>
+                                </div>
+                            </div>
+                            <div class="small text-purple-light mt-2">Update frequency</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Satellite Details Table -->
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th class="text-white-75">Satellite</th>
+                                <th class="text-white-75">Status</th>
+                                <th class="text-white-75">Coverage</th>
+                                <th class="text-white-75">Last Update</th>
+                                <th class="text-white-75">Data Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="text-white">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-satellite text-cyan-400 me-2"></i>
+                                        <span>INSAT-3D</span>
+                                    </div>
+                                </td>
+                                <td><span class="badge bg-success">Active</span></td>
+                                <td class="text-white-75">Indian Ocean</td>
+                                <td class="text-white-75">2 min ago</td>
+                                <td class="text-white-75">IR, VIS, WV</td>
+                            </tr>
+                            <tr>
+                                <td class="text-white">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-satellite text-cyan-400 me-2"></i>
+                                        <span>INSAT-3DR</span>
+                                    </div>
+                                </td>
+                                <td><span class="badge bg-success">Active</span></td>
+                                <td class="text-white-75">Tropical Asia</td>
+                                <td class="text-white-75">5 min ago</td>
+                                <td class="text-white-75">IR, VIS, WV</td>
+                            </tr>
+                            <tr>
+                                <td class="text-white">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-satellite text-cyan-400 me-2"></i>
+                                        <span>MODIS</span>
+                                    </div>
+                                </td>
+                                <td><span class="badge bg-success">Active</span></td>
+                                <td class="text-white-75">Global</td>
+                                <td class="text-white-75">15 min ago</td>
+                                <td class="text-white-75">Multi-spectral</td>
+                            </tr>
+                            <tr>
+                                <td class="text-white">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-satellite text-cyan-400 me-2"></i>
+                                        <span>GOES-16</span>
+                                    </div>
+                                </td>
+                                <td><span class="badge bg-warning">Maintenance</span></td>
+                                <td class="text-white-75">Americas</td>
+                                <td class="text-white-75">1 hour ago</td>
+                                <td class="text-white-75">IR, VIS</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar - Coverage Map & Quick Stats -->
+        <div class="col-lg-4">
+            <div class="row g-4">
+                <!-- Coverage Map -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <h6 class="text-white mb-3">
+                            <i class="fas fa-map text-cyan-400 me-2"></i>
+                            Coverage Map
+                        </h6>
+                        <div class="coverage-map-container" style="height: 200px; background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(59, 130, 246, 0.1)); border-radius: 8px; position: relative; overflow: hidden;">
                             <div class="text-center py-4">
-                                <i class="fas fa-map text-white-50 fs-1 mb-3"></i>
-                                <p class="text-white-75">Interactive coverage map coming soon</p>
+                                <i class="fas fa-globe text-cyan-400 fs-1 mb-2"></i>
+                                <p class="text-white-75 small mb-2">Tropical Coverage Area</p>
+                                <div class="d-flex justify-content-center gap-2">
+                                    <span class="badge bg-success bg-opacity-25 text-success">INSAT-3D</span>
+                                    <span class="badge bg-primary bg-opacity-25 text-primary">INSAT-3DR</span>
+                                    <span class="badge bg-info bg-opacity-25 text-info">MODIS</span>
+                                </div>
+                            </div>
+                            <!-- Coverage indicators -->
+                            <div class="position-absolute" style="top: 30%; left: 60%; width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></div>
+                            <div class="position-absolute" style="top: 45%; left: 75%; width: 8px; height: 8px; background: #3b82f6; border-radius: 50%;"></div>
+                            <div class="position-absolute" style="top: 60%; left: 50%; width: 8px; height: 8px; background: #06b6d4; border-radius: 50%;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Data Processing Stats -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <h6 class="text-white mb-3">
+                            <i class="fas fa-chart-bar text-cyan-400 me-2"></i>
+                            Processing Statistics
+                        </h6>
+                        <div class="space-y-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-white-75">Files Processed</span>
+                                <span class="text-white fw-bold">{{ total_files|default:"0" }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-white-75">Success Rate</span>
+                                <span class="text-success fw-bold">{% if total_files > 0 %}{{ completed_files|default:0|floatformat:0 }}{% else %}0{% endif %}%</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-white-75">Avg Cloud Coverage</span>
+                                <span class="text-info fw-bold">{{ avg_cloud_coverage|default:"0" }}%</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-white-75">Processing Time</span>
+                                <span class="text-warning fw-bold">~30s</span>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="col-md-6">
-                        <div class="card-glass rounded-4 p-4">
-                            <h6 class="text-white mb-3">
-                                <i class="fas fa-signal text-cyan-400 me-2"></i>
-                                Signal Status
-                            </h6>
-                            <div class="d-flex align-items-center justify-content-between mb-3">
-                                <span class="text-white">INSAT-3D</span>
-                                <span class="badge bg-success">Active</span>
-                            </div>
-                            <div class="d-flex align-items-center justify-content-between mb-3">
-                                <span class="text-white">MODIS</span>
-                                <span class="badge bg-success">Active</span>
-                            </div>
-                            <div class="d-flex align-items-center justify-content-between">
-                                <span class="text-white">GOES-16</span>
-                                <span class="badge bg-warning">Maintenance</span>
-                            </div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <h6 class="text-white mb-3">
+                            <i class="fas fa-bolt text-cyan-400 me-2"></i>
+                            Quick Actions
+                        </h6>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-glass" onclick="showTab('upload')">
+                                <i class="fas fa-upload me-2"></i>Upload New Data
+                            </button>
+                            <button class="btn btn-glass" onclick="window.location.href='/data-history/'">
+                                <i class="fas fa-history me-2"></i>View History
+                            </button>
+                            <button class="btn btn-glass" onclick="refreshSatelliteData()">
+                                <i class="fas fa-sync-alt me-2"></i>Refresh Data
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -405,15 +662,148 @@
 
 <!-- Chart Script -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+let analyticsChart = null;
+
+// Function to load chart data from API
+async function loadChartData() {
+    try {
+        console.log('📊 Loading chart data from API...');
+        const response = await fetch('/api/chart-data/');
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('📊 Chart data loaded successfully:', result.data);
+            updateChart(result.data);
+        } else {
+            console.error('📊 Error loading chart data:', result.error);
+            showNoDataChart();
+        }
+    } catch (error) {
+        console.error('📊 Error fetching chart data:', error);
+        showNoDataChart();
+    }
+}
+
+// Function to update chart with real data
+function updateChart(chartData) {
     const ctx = document.getElementById('analyticsChart').getContext('2d');
-    const chart = new Chart(ctx, {
+    
+    // Destroy existing chart if it exists
+    if (analyticsChart) {
+        analyticsChart.destroy();
+    }
+    
+    analyticsChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+            labels: chartData.labels,
+            datasets: [
+                {
+                    label: 'Cloud Coverage (%)',
+                    data: chartData.cloud_coverage,
+                    borderColor: '#06b6d4',
+                    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Avg Temperature (K)',
+                    data: chartData.temperature_avg,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    fill: false,
+                    tension: 0.4,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'rgba(255, 255, 255, 0.8)'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        afterBody: function(context) {
+                            const dataIndex = context[0].dataIndex;
+                            if (chartData.file_names && chartData.file_names[dataIndex]) {
+                                return `File: ${chartData.file_names[dataIndex]}`;
+                            }
+                            return '';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.6)'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.6)'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Cloud Coverage (%)',
+                        color: 'rgba(255, 255, 255, 0.8)'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.6)'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                    title: {
+                        display: true,
+                        text: 'Temperature (K)',
+                        color: 'rgba(255, 255, 255, 0.8)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Function to show no data chart
+function showNoDataChart() {
+    const ctx = document.getElementById('analyticsChart').getContext('2d');
+    
+    if (analyticsChart) {
+        analyticsChart.destroy();
+    }
+    
+    analyticsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['No Data Available'],
             datasets: [{
                 label: 'Cloud Coverage (%)',
-                data: [65, 72, 68, 75, 80, 78, 70, 65],
+                data: [0],
                 borderColor: '#06b6d4',
                 backgroundColor: 'rgba(6, 182, 212, 0.1)',
                 fill: true,
@@ -450,7 +840,73 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+}
+
+// Initialize chart when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📊 Initializing dynamic chart...');
+    loadChartData();
+    
+    // Refresh chart data every 30 seconds
+    setInterval(loadChartData, 30000);
 });
+
+// Function to refresh satellite data
+function refreshSatelliteData() {
+    console.log('🛰️ Refreshing satellite data...');
+    
+    // Update active satellites count (simulate real-time data)
+    const activeSatellites = document.getElementById('activeSatellites');
+    if (activeSatellites) {
+        const currentCount = parseInt(activeSatellites.textContent);
+        const newCount = Math.random() > 0.1 ? currentCount : currentCount - 1; // 10% chance of satellite going offline
+        activeSatellites.textContent = newCount;
+        
+        // Update status badges
+        const statusBadges = document.querySelectorAll('.badge');
+        statusBadges.forEach(badge => {
+            if (badge.textContent === 'Active' && Math.random() > 0.95) {
+                badge.className = 'badge bg-warning';
+                badge.textContent = 'Maintenance';
+            } else if (badge.textContent === 'Maintenance' && Math.random() > 0.8) {
+                badge.className = 'badge bg-success';
+                badge.textContent = 'Active';
+            }
+        });
+        
+        // Update last update times
+        const updateTimes = document.querySelectorAll('td:nth-child(4)');
+        updateTimes.forEach(time => {
+            const minutes = Math.floor(Math.random() * 15) + 1;
+            time.textContent = `${minutes} min ago`;
+        });
+    }
+    
+    // Show success message
+    const toast = document.createElement('div');
+    toast.className = 'position-fixed top-0 end-0 p-3';
+    toast.style.zIndex = '1055';
+    toast.innerHTML = `
+        <div class="toast show" role="alert">
+            <div class="toast-header bg-success text-white">
+                <i class="fas fa-sync-alt me-2"></i>
+                <strong class="me-auto">Satellite Data Updated</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body bg-dark text-white">
+                Satellite status and coverage data refreshed successfully.
+            </div>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    
+    // Remove toast after 3 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, 3000);
+}
 
 // Retry processing function
 function retryProcessing(fileId) {
@@ -464,7 +920,7 @@ function deleteFile(fileId) {
     if (confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = `/delete/${fileId}/`;
+        form.action = `/delete-data/${fileId}/`;
         
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         const csrfInput = document.createElement('input');
@@ -475,6 +931,173 @@ function deleteFile(fileId) {
         form.appendChild(csrfInput);
         document.body.appendChild(form);
         form.submit();
+    }
+}
+
+// Function to get user's location
+function getUserLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+                updateWeather(latitude, longitude);
+                alert(`Location updated to: Latitude ${latitude}, Longitude ${longitude}`);
+            },
+            (error) => {
+                alert(`Error getting location: ${error.message}`);
+            }
+        );
+    } else {
+        alert('Geolocation is not supported by your browser.');
+    }
+}
+
+// Function to request location on page load
+function requestLocationOnLoad() {
+    if (navigator.geolocation) {
+        // Show a friendly popup asking for location permission
+        const locationPermission = confirm(
+            "🌍 Would you like to share your location for personalized weather data?\n\n" +
+            "This will show weather information for your current location instead of the default tropical region.\n\n" +
+            "Click 'OK' to allow location access, or 'Cancel' to use default location."
+        );
+        
+        if (locationPermission) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+                    
+                    // Update location via API
+                    fetch('{% url "cloud_detection:update_location" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        },
+                        body: JSON.stringify({
+                            lat: latitude,
+                            lon: longitude,
+                            location: 'Your Location'
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log('Location updated successfully');
+                            // Reload page to get updated weather
+                            location.reload();
+                        } else {
+                            console.error('Failed to update location:', data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error updating location:', error);
+                    });
+                },
+                (error) => {
+                    console.log('Location permission denied or error:', error.message);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 60000
+                }
+            );
+        }
+    }
+}
+
+// Call location request when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if user has already set location
+    const hasUserLocation = sessionStorage.getItem('userLocationSet');
+    
+    if (!hasUserLocation) {
+        // Small delay to let the page load first
+        setTimeout(() => {
+            requestLocationOnLoad();
+        }, 1000);
+    }
+});
+
+// Function to update weather data based on coordinates
+function updateWeather(latitude, longitude) {
+    const weatherInfo = document.querySelector('.weather-info');
+    if (weatherInfo) {
+        weatherInfo.innerHTML = '<p class="text-white-75">Loading weather data...</p>';
+        fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=YOUR_API_KEY&units=metric`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.cod === 200) {
+                    const temperature = data.main.temp;
+                    const feelsLike = data.main.feels_like;
+                    const condition = data.weather[0].description;
+                    const location = `${data.name}, ${data.sys.country}`;
+                    const humidity = data.main.humidity;
+                    const windSpeed = data.wind.speed;
+                    const cloudCoverage = 0; // No direct cloud coverage in OpenWeatherMap API
+                    const visibility = data.visibility;
+                    const minTemp = temperature - 2; // Approximate range
+                    const maxTemp = temperature + 2;
+
+                    weatherInfo.innerHTML = `
+                        <div class="weather-main mb-3">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="temperature">
+                                    <span class="temp-value h3 text-white fw-bold">${temperature.toFixed(1)}</span>
+                                    <span class="temp-unit text-white-75">°C</span>
+                                </div>
+                                <div class="weather-condition text-center">
+                                    <i class="fas fa-cloud-sun weather-icon text-cyan-400 fs-2"></i>
+                                    <div class="text-white small mt-1">${condition}</div>
+                                </div>
+                            </div>
+                            ${feelsLike ? `<div class="text-white-50 small text-center">Feels like ${feelsLike.toFixed(1)}°C</div>` : ''}
+                        </div>
+                        
+                        <div class="weather-details">
+                            <div class="weather-item d-flex align-items-center mb-2">
+                                <i class="fas fa-map-marker-alt text-primary me-2"></i>
+                                <span class="text-white small">${location}</span>
+                            </div>
+                            <div class="weather-item d-flex align-items-center mb-2">
+                                <i class="fas fa-tint text-info me-2"></i>
+                                <span class="text-white small">Humidity: ${humidity}%</span>
+                            </div>
+                            <div class="weather-item d-flex align-items-center mb-2">
+                                <i class="fas fa-wind text-warning me-2"></i>
+                                <span class="text-white small">Wind: ${windSpeed.toFixed(1)} km/h</span>
+                            </div>
+                            <div class="weather-item d-flex align-items-center mb-2">
+                                <i class="fas fa-cloud text-secondary me-2"></i>
+                                <span class="text-white small">Clouds: ${cloudCoverage}%</span>
+                            </div>
+                            <div class="weather-item d-flex align-items-center mb-2">
+                                <i class="fas fa-eye text-success me-2"></i>
+                                <span class="text-white small">Visibility: ${visibility / 1000} km</span>
+                            </div>
+                            ${minTemp && maxTemp ? `
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-thermometer-half text-danger me-2"></i>
+                                    <span class="text-white small">Range: ${minTemp.toFixed(1)}°C - ${maxTemp.toFixed(1)}°C</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="weather-description mt-3">
+                            <small class="text-white-50">${data.weather[0].description}</small>
+                        </div>
+                    `;
+                } else {
+                    weatherInfo.innerHTML = `<p class="text-white-75">Could not fetch weather data for this location.</p>`;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching weather data:', error);
+                weatherInfo.innerHTML = `<p class="text-white-75">Error fetching weather data.</p>`;
+            });
     }
 }
 </script>

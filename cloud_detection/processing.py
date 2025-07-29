@@ -396,11 +396,26 @@ class CloudDetectionProcessor:
 
 def process_satellite_file(satellite_data_id):
     """Process a satellite data file using the original algorithm"""
+    print(f"🔧 Processing Debug: Starting processing for satellite_data_id = {satellite_data_id}")
+    
     try:
         satellite_data = SatelliteData.objects.get(id=satellite_data_id)
+        print(f"🔧 Processing Debug: Found satellite data - User: {satellite_data.uploaded_by}, Status: {satellite_data.status}")
+        
         processor = CloudDetectionProcessor(satellite_data)
+        print(f"🔧 Processing Debug: Created processor instance")
+        
         processor.process_satellite_data()
+        print(f"🔧 Processing Debug: Processing completed successfully")
+        
+        # Check final status
+        satellite_data.refresh_from_db()
+        print(f"🔧 Processing Debug: Final status = {satellite_data.status}")
+        
         return True
     except Exception as e:
+        print(f"🔧 Processing Debug: Exception occurred = {str(e)}")
+        import traceback
+        print(f"🔧 Processing Debug: Traceback = {traceback.format_exc()}")
         print(f"Error processing satellite data {satellite_data_id}: {str(e)}")
         return False 

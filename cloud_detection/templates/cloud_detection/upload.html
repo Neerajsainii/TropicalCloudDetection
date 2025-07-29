@@ -1,4 +1,4 @@
-{% extends 'cloud_detection/base.html' %}
+{% extends 'cloud_detection/modern_base.html' %}
 
 {% block title %}Upload - Tropical Cloud Detection{% endblock %}
 
@@ -152,50 +152,280 @@
 {% endblock %}
 
 {% block content %}
-<div class="upload-container">
-    <div class="text-center mb-4">
-        <h1 class="upload-title">🌤️ Tropical Cloud Detection</h1>
-        <h2 class="upload-subtitle">Upload Satellite Data Files</h2>
+<!-- Tab Navigation -->
+<div class="mb-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex flex-column flex-md-row gap-2 justify-content-center">
+                <button class="tab-button btn flex-fill me-md-2 mb-2 mb-md-0" onclick="showTab('dashboard')">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Dashboard
+                </button>
+                <button class="tab-button btn flex-fill me-md-2 mb-2 mb-md-0 active" onclick="showTab('upload')">
+                    <i class="fas fa-upload me-2"></i>
+                    Upload Data
+                </button>
+                <button class="tab-button btn flex-fill" onclick="showTab('satellite')">
+                    <i class="fas fa-satellite me-2"></i>
+                    Satellite View
+                </button>
+            </div>
+        </div>
     </div>
-    
-    <div class="size-limit">
-        <strong>📁 File Size Limit:</strong> Up to 100MB (HDF5, NetCDF, or other satellite data formats)
+</div>
+
+<!-- Dashboard Tab Content -->
+<div id="dashboard-tab" class="tab-content" style="display: none;">
+    <div class="row g-4">
+        <!-- Analytics Section -->
+        <div class="col-lg-8">
+            <div class="card-glass rounded-4 p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="text-white mb-0">
+                        <i class="fas fa-chart-bar text-cyan-400 me-2"></i>
+                        Cloud Analytics Dashboard
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">24H Data</span>
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">Real-time</span>
+                    </div>
+                </div>
+                
+                <!-- Stats Cards -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2)); border: 1px solid rgba(59, 130, 246, 0.3);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="text-primary-light small mb-1">Total Files</p>
+                                    <p class="h4 text-primary fw-bold mb-0">{{ total_files|default:"0" }}</p>
+                                </div>
+                                <div class="p-2 rounded-circle" style="background: rgba(59, 130, 246, 0.3);">
+                                    <i class="fas fa-file-alt text-primary"></i>
+                                </div>
+                            </div>
+                            <div class="small text-primary-light mt-2">Your uploaded files</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(20, 184, 166, 0.2)); border: 1px solid rgba(16, 185, 129, 0.3);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="text-success-light small mb-1">Completed</p>
+                                    <p class="h4 text-success fw-bold mb-0">{{ completed_files|default:"0" }}</p>
+                                </div>
+                                <div class="p-2 rounded-circle" style="background: rgba(16, 185, 129, 0.3);">
+                                    <i class="fas fa-check-circle text-success"></i>
+                                </div>
+                            </div>
+                            <div class="small text-success-light mt-2">Successfully processed</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2)); border: 1px solid rgba(168, 85, 247, 0.3);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="text-purple-light small mb-1">Processing</p>
+                                    <p class="h4 text-purple fw-bold mb-0 status-value" data-type="processing_count">0</p>
+                                </div>
+                                <div class="p-2 rounded-circle" style="background: rgba(168, 85, 247, 0.3);">
+                                    <i class="fas fa-cog fa-spin text-purple"></i>
+                                </div>
+                            </div>
+                            <div class="small text-purple-light mt-2">Currently processing</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chart Area -->
+                <div class="chart-container">
+                    <canvas id="analyticsChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="row g-4">
+                <!-- Recent Activity -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <h6 class="text-white mb-3">
+                            <i class="fas fa-clock text-cyan-400 me-2"></i>
+                            Recent Activity
+                        </h6>
+                        <div class="activity-list">
+                            <div class="activity-item d-flex align-items-center mb-3">
+                                <div class="activity-icon p-2 rounded-circle me-3" style="background: rgba(16, 185, 129, 0.2);">
+                                    <i class="fas fa-check text-success"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="text-white small fw-semibold">File processed successfully</div>
+                                    <div class="text-white-75 small">3RIMG_01JUN2025_0045_L1B_STD_V01R00_B3456.h5</div>
+                                    <div class="text-white-75 small">2 minutes ago</div>
+                                </div>
+                            </div>
+                            <div class="activity-item d-flex align-items-center mb-3">
+                                <div class="activity-icon p-2 rounded-circle me-3" style="background: rgba(59, 130, 246, 0.2);">
+                                    <i class="fas fa-upload text-primary"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="text-white small fw-semibold">New file uploaded</div>
+                                    <div class="text-white-75 small">INSAT_3D_IR1_20250601_0045.h5</div>
+                                    <div class="text-white-75 small">5 minutes ago</div>
+                                </div>
+                            </div>
+                            <div class="activity-item d-flex align-items-center mb-3">
+                                <div class="activity-icon p-2 rounded-circle me-3" style="background: rgba(245, 158, 11, 0.2);">
+                                    <i class="fas fa-cog fa-spin text-warning"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="text-white small fw-semibold">Processing started</div>
+                                    <div class="text-white-75 small">Cloud detection algorithm</div>
+                                    <div class="text-white-75 small">8 minutes ago</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Weather Card -->
+                <div class="col-12">
+                    <div class="card-glass rounded-4 p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="text-white mb-0">
+                                <i class="fas fa-cloud-sun text-cyan-400 me-2"></i>
+                                Current Weather
+                            </h6>
+                            <button class="btn btn-sm btn-glass" onclick="getUserLocation()" title="Update Location">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </button>
+                        </div>
+                        <div class="weather-info">
+                            <div class="weather-main mb-3">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="temperature">
+                                        <span class="temp-value h3 text-white fw-bold">{{ weather_data.temperature }}</span>
+                                        <span class="temp-unit text-white-75">°C</span>
+                                    </div>
+                                    <div class="weather-condition text-center">
+                                        <i class="fas fa-cloud-sun weather-icon text-cyan-400 fs-2"></i>
+                                        <div class="text-white small mt-1">{{ weather_data.condition }}</div>
+                                    </div>
+                                </div>
+                                {% if weather_data.feels_like %}
+                                <div class="text-white-50 small text-center">
+                                    Feels like {{ weather_data.feels_like }}°C
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="weather-details">
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-map-marker-alt text-primary me-2"></i>
+                                    <span class="text-white small">{{ weather_data.location }}</span>
+                                </div>
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-tint text-info me-2"></i>
+                                    <span class="text-white small">Humidity: {{ weather_data.humidity }}%</span>
+                                </div>
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-wind text-warning me-2"></i>
+                                    <span class="text-white small">Wind: {{ weather_data.wind_speed }} km/h</span>
+                                </div>
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-cloud text-secondary me-2"></i>
+                                    <span class="text-white small">Clouds: {{ weather_data.cloud_coverage }}%</span>
+                                </div>
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-eye text-success me-2"></i>
+                                    <span class="text-white small">Visibility: {{ weather_data.visibility }} km</span>
+                                </div>
+                                {% if weather_data.min_temp and weather_data.max_temp %}
+                                <div class="weather-item d-flex align-items-center mb-2">
+                                    <i class="fas fa-thermometer-half text-danger me-2"></i>
+                                    <span class="text-white small">Range: {{ weather_data.min_temp }}°C - {{ weather_data.max_temp }}°C</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="weather-description mt-3">
+                                <small class="text-white-50">{{ weather_data.description }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    
-    <div class="upload-area" id="uploadArea">
-        <div id="uploadText">
-            <h3 class="text-white mb-3">📁 Drop your satellite data file here</h3>
-            <p class="text-white-75 mb-3">or</p>
-            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
-                Choose File
+</div>
+
+<!-- Upload Tab Content -->
+<div id="upload-tab" class="tab-content">
+    <div class="upload-container">
+        <div class="text-center mb-4">
+            <h1 class="upload-title">🌤️ Tropical Cloud Detection</h1>
+            <h2 class="upload-subtitle">Upload Satellite Data Files</h2>
+        </div>
+        
+        <div class="size-limit">
+            <strong>📁 File Size Limit:</strong> Up to 100MB (HDF5, NetCDF, or other satellite data formats)
+        </div>
+        
+        <div class="upload-area" id="uploadArea">
+            <div id="uploadText">
+                <h3 class="text-white mb-3">📁 Drop your satellite data file here</h3>
+                <p class="text-white-75 mb-3">or</p>
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    Choose File
+                </button>
+                <p class="text-white-75 mt-3"><small>Supports: .h5, .hdf5, .nc, .netcdf files</small></p>
+            </div>
+        </div>
+        
+        <input type="file" id="fileInput" class="file-input" accept=".h5,.hdf5,.nc,.netcdf" onchange="handleFileSelect(event)">
+        
+        <div class="file-info" id="fileInfo">
+            <h3>📋 File Information</h3>
+            <p><strong>Name:</strong> <span id="fileName"></span></p>
+            <p><strong>Size:</strong> <span id="fileSize"></span></p>
+            <p><strong>Type:</strong> <span id="fileType"></span></p>
+        </div>
+        
+        <div class="progress-container" id="progressContainer">
+            <h3 class="text-white mb-3">📤 Uploading to Google Cloud Storage...</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">0%</div>
+        </div>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="text-center mt-4">
+            <button class="upload-btn" id="uploadBtn" onclick="uploadFile()" disabled>
+                🚀 Start Upload
             </button>
-            <p class="text-white-75 mt-3"><small>Supports: .h5, .hdf5, .nc, .netcdf files</small></p>
         </div>
     </div>
-    
-    <input type="file" id="fileInput" class="file-input" accept=".h5,.hdf5,.nc,.netcdf" onchange="handleFileSelect(event)">
-    
-    <div class="file-info" id="fileInfo">
-        <h3>📋 File Information</h3>
-        <p><strong>Name:</strong> <span id="fileName"></span></p>
-        <p><strong>Size:</strong> <span id="fileSize"></span></p>
-        <p><strong>Type:</strong> <span id="fileType"></span></p>
-    </div>
-    
-    <div class="progress-container" id="progressContainer">
-        <h3 class="text-white mb-3">📤 Uploading to Google Cloud Storage...</h3>
-        <div class="progress-bar">
-            <div class="progress-fill" id="progressFill"></div>
+</div>
+
+<!-- Satellite View Tab Content -->
+<div id="satellite-tab" class="tab-content" style="display: none;">
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="card-glass rounded-4 p-4">
+                <h5 class="text-white mb-4">
+                    <i class="fas fa-satellite text-cyan-400 me-2"></i>
+                    Satellite Data Overview
+                </h5>
+                <div class="text-center py-5">
+                    <i class="fas fa-satellite text-cyan-400" style="font-size: 5rem;"></i>
+                    <h4 class="text-white mt-3">Satellite View Coming Soon</h4>
+                    <p class="text-white-75">Advanced satellite data visualization and analysis features will be available here.</p>
+                </div>
+            </div>
         </div>
-        <div class="progress-text" id="progressText">0%</div>
-    </div>
-    
-    <div class="status" id="status"></div>
-    
-    <div class="text-center mt-4">
-        <button class="upload-btn" id="uploadBtn" onclick="uploadFile()" disabled>
-            🚀 Start Upload
-        </button>
     </div>
 </div>
 {% endblock %}
@@ -209,6 +439,36 @@
     function getCSRFToken() {
         return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     }
+    
+    // Override the default tab initialization to show upload tab
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show upload tab by default instead of dashboard
+        showTab('upload');
+        
+        // Add drag and drop functionality
+        const dropzones = document.querySelectorAll('.dropzone');
+        dropzones.forEach(dropzone => {
+            dropzone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('dragover');
+            });
+            
+            dropzone.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                this.classList.remove('dragover');
+            });
+            
+            dropzone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('dragover');
+                // Handle file drop
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFileUpload(files[0]);
+                }
+            });
+        });
+    });
     
     // Drag and drop functionality
     const uploadArea = document.getElementById('uploadArea');
@@ -394,6 +654,12 @@
         document.getElementById('status').style.display = 'none';
         document.getElementById('progressFill').style.width = '0%';
         document.getElementById('progressText').textContent = '0%';
+    }
+    
+    // File upload handler
+    function handleFileUpload(file) {
+        // This will be implemented in the upload page
+        console.log('File uploaded:', file.name);
     }
 </script>
 {% endblock %} 
